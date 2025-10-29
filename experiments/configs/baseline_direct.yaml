@@ -1,0 +1,27 @@
+# Configuration for Baseline 1: Direct LLM (no retrieval)
+
+agent:
+  type: direct_llm
+  name: "baseline_direct_llm"
+  system_prompt: "You are a helpful assistant. Answer questions accurately and concisely based on your knowledge."
+
+model:
+  type: huggingface
+  model_name: "google/flan-t5-base"
+  device: "cuda"
+  max_tokens: 128
+  temperature: 0.7
+
+dataset:
+  name: natural_questions
+  split: validation
+  num_examples: 100  # Evaluate on 100 examples
+
+metrics:
+  - exact_match
+  - f1
+
+output:
+  save_predictions: true
+  output_path: "outputs/baseline_direct_results.json"
+
