@@ -8,11 +8,14 @@ This guide shows how to use RAGiCamp for your RAG experiments.
 # Clone the repository
 cd ragicamp
 
-# Install in development mode
-pip install -e .
+# Install with uv (recommended - faster and better dependency resolution)
+uv sync
 
-# Or install with optional dependencies
-pip install -e ".[dev,metrics,viz]"
+# Install with optional dependencies
+uv sync --extra dev --extra metrics --extra viz
+
+# Or install with pip if you prefer
+# pip install -e ".[dev,metrics,viz]"
 ```
 
 ## Quick Start
@@ -44,14 +47,19 @@ print(response.answer)
 
 ```bash
 # Run baseline experiment
-python experiments/scripts/run_experiment.py \
+uv run python experiments/scripts/run_experiment.py \
     --config experiments/configs/baseline_direct.yaml \
     --mode eval
 
 # Train adaptive agent
-python experiments/scripts/run_experiment.py \
+uv run python experiments/scripts/run_experiment.py \
     --config experiments/configs/bandit_rag.yaml \
     --mode train
+
+# Run Gemma 2B baseline (recommended starting point)
+uv run python experiments/scripts/run_gemma2b_baseline.py \
+    --dataset natural_questions \
+    --num-examples 100
 ```
 
 ## Components Guide

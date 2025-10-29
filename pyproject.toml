@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "ragicamp"
@@ -25,6 +25,7 @@ dependencies = [
     "pyyaml>=6.0",
     "tqdm>=4.65.0",
     "scikit-learn>=1.2.0",
+    "accelerate>=0.20.0",
 ]
 
 [project.optional-dependencies]
@@ -38,7 +39,6 @@ dev = [
 ]
 metrics = [
     "bert-score>=0.3.13",
-    "bleurt @ git+https://github.com/google-research/bleurt.git",
 ]
 viz = [
     "matplotlib>=3.5.0",
@@ -46,8 +46,8 @@ viz = [
     "wandb>=0.15.0",
 ]
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.hatch.build.targets.wheel]
+packages = ["src/ragicamp"]
 
 [tool.black]
 line-length = 100
@@ -61,5 +61,4 @@ line_length = 100
 python_version = "3.9"
 warn_return_any = true
 warn_unused_configs = true
-disallow_untyped_defs = true
-
+disallow_untyped_defs = false

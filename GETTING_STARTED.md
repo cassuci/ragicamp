@@ -12,11 +12,14 @@ RAGiCamp is a modular framework for experimenting with Retrieval-Augmented Gener
 # Navigate to the repository
 cd ragicamp
 
-# Install dependencies
-pip install -e .
+# Install dependencies with uv (recommended)
+uv sync
 
-# Optional: Install additional dependencies
-pip install -e ".[dev,metrics,viz]"
+# Optional: Install with additional dependencies
+uv sync --extra dev --extra metrics --extra viz
+
+# Or use pip if you prefer
+# pip install -e ".[dev,metrics,viz]"
 ```
 
 ## 5-Minute Quickstart
@@ -54,13 +57,36 @@ print(f"Answer: {response.answer}")
 
 Run it:
 ```bash
-python demo.py
+uv run python demo.py
 ```
 
-### 2. Run a Baseline Experiment
+### 2. Run the Gemma 2B Baseline
 
 ```bash
-python experiments/scripts/run_experiment.py \
+# Quick evaluation with Gemma 2B (no retrieval)
+uv run python experiments/scripts/run_gemma2b_baseline.py \
+    --dataset natural_questions \
+    --num-examples 100 \
+    --device cuda
+
+# Use CPU if no GPU available
+uv run python experiments/scripts/run_gemma2b_baseline.py \
+    --dataset natural_questions \
+    --num-examples 10 \
+    --device cpu
+
+# Use 8-bit quantization to save memory
+uv run python experiments/scripts/run_gemma2b_baseline.py \
+    --dataset natural_questions \
+    --num-examples 100 \
+    --load-in-8bit
+```
+
+### 3. Run Other Baseline Experiments
+
+```bash
+# Using config files
+uv run python experiments/scripts/run_experiment.py \
     --config experiments/configs/baseline_direct.yaml \
     --mode eval
 ```

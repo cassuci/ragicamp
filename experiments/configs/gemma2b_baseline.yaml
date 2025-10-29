@@ -1,0 +1,31 @@
+# Configuration for Gemma 2B Baseline (no retrieval/context)
+
+agent:
+  type: direct_llm
+  name: "gemma_2b_baseline"
+  system_prompt: "You are a helpful AI assistant. Answer questions accurately and concisely based on your knowledge."
+
+model:
+  type: huggingface
+  model_name: "google/gemma-2-2b-it"  # Gemma 2 2B Instruct
+  device: "cuda"  # Use "cpu" if no GPU available
+  max_tokens: 128
+  temperature: 0.7
+  load_in_8bit: false  # Set to true if memory is limited
+
+dataset:
+  name: natural_questions  # Options: natural_questions, hotpotqa, triviaqa
+  split: validation
+  num_examples: 100  # Start with 100 examples for quick testing
+
+metrics:
+  - exact_match
+  - f1
+
+output:
+  save_predictions: true
+  output_path: "outputs/gemma2b_baseline_results.json"
+
+# Note: This is a baseline without retrieval. 
+# For comparison, you can run this against the RAG configurations.
+

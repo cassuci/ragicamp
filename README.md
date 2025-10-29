@@ -26,11 +26,18 @@ The framework is built on clean abstractions that separate concerns:
 ## Quick Start
 
 ```bash
-# Install the package
-pip install -e .
+# Install dependencies with uv
+uv sync
 
 # Run a baseline experiment
-python experiments/scripts/run_baseline.py --config experiments/configs/direct_llm.yaml
+uv run python experiments/scripts/run_experiment.py \
+    --config experiments/configs/baseline_direct.yaml \
+    --mode eval
+
+# Or run the Gemma 2B baseline
+uv run python experiments/scripts/run_gemma2b_baseline.py \
+    --dataset natural_questions \
+    --num-examples 100
 ```
 
 ## Project Structure
