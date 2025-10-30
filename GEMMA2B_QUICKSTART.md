@@ -72,6 +72,7 @@ uv run python experiments/scripts/run_experiment.py \
 --num-examples     Number of examples to evaluate [default: 100]
 --device           Device to use (cuda, cpu) [default: cuda]
 --load-in-8bit     Use 8-bit quantization to save memory
+--filter-no-answer Filter out questions without explicit answers [recommended]
 --output           Output path for results [default: outputs/gemma2b_baseline_results.json]
 --max-tokens       Maximum tokens to generate [default: 128]
 --temperature      Generation temperature [default: 0.7]
@@ -84,7 +85,8 @@ uv run python experiments/scripts/run_experiment.py \
 uv run python experiments/scripts/run_gemma2b_baseline.py \
     --dataset natural_questions \
     --num-examples 10 \
-    --device cpu
+    --device cpu \
+    --filter-no-answer
 ```
 
 ### Full Evaluation (100 examples on GPU)
@@ -92,8 +94,11 @@ uv run python experiments/scripts/run_gemma2b_baseline.py \
 uv run python experiments/scripts/run_gemma2b_baseline.py \
     --dataset natural_questions \
     --num-examples 100 \
-    --device cuda
+    --device cuda \
+    --filter-no-answer
 ```
+
+**Note**: The `--filter-no-answer` flag ensures you only evaluate questions with explicit ground-truth answers, making metrics more meaningful.
 
 ### Memory-Efficient Run (8-bit quantization)
 ```bash
@@ -155,7 +160,7 @@ Metrics:
 
 The JSON output contains:
 - Overall metrics (Exact Match, F1)
-- Per-example predictions and references
+- Per-example predictions with expected answers
 - Metadata (agent name, dataset, etc.)
 
 Example:
@@ -171,12 +176,20 @@ Example:
       "id": "nq_validation_0",
       "question": "who sang the song i think we're alone now",
       "prediction": "Tiffany",
-      "references": ["Tiffany"]
+      "expected_answer": "Tiffany",
+      "all_acceptable_answers": ["Tiffany"],
+      "references": ["Tiffany"],
+      "metadata": {"agent_type": "direct_llm"}
     },
     ...
   ]
 }
 ```
+
+**New fields**:
+- `expected_answer`: The primary/first expected answer (useful for quick comparison)
+- `all_acceptable_answers`: All acceptable answer variants
+- `references`: Same as all_acceptable_answers (kept for backward compatibility)
 
 ## Troubleshooting
 

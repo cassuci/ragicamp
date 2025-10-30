@@ -143,7 +143,9 @@ class Evaluator:
                     "id": ex.id,
                     "question": ex.question,
                     "prediction": pred,
-                    "references": ex.answers,
+                    "expected_answer": ex.answers[0] if ex.answers else None,  # Primary expected answer
+                    "all_acceptable_answers": ex.answers,  # All acceptable answers
+                    "references": ex.answers,  # Keep for backward compatibility
                     "metadata": resp.metadata if hasattr(resp, "metadata") else {}
                 }
                 for ex, pred, resp in zip(examples, predictions, responses)

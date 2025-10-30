@@ -12,9 +12,11 @@ help:
 	@echo "  make format           - Format code"
 	@echo "  make clean            - Clean generated files"
 	@echo ""
-	@echo "  make run-gemma2b      - Run Gemma 2B baseline (quick test)"
-	@echo "  make run-gemma2b-full - Run Gemma 2B baseline (100 examples)"
+	@echo "  make run-gemma2b      - Run Gemma 2B baseline (quick test, filtered)"
+	@echo "  make run-gemma2b-full - Run Gemma 2B baseline (100 examples, filtered)"
 	@echo "  make run-baseline     - Run DirectLLM baseline"
+	@echo ""
+	@echo "Note: Gemma 2B commands filter out questions without explicit answers"
 	@echo ""
 
 install:
@@ -31,8 +33,8 @@ lint:
 	uv run mypy src/ || true
 
 format:
-	uv run black src/ tests/ experiments/
-	uv run isort src/ tests/ experiments/
+	uv run black src/ tests/ experiments/ -l 99
+	uv run isort src/ tests/ experiments/ --profile black
 
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
@@ -46,14 +48,16 @@ run-gemma2b:
 	uv run python experiments/scripts/run_gemma2b_baseline.py \
 		--dataset natural_questions \
 		--num-examples 10 \
-		--device cuda
+		--device cuda \
+		--filter-no-answer
 
 run-gemma2b-full:
 	@echo "Running Gemma 2B baseline (100 examples)..."
 	uv run python experiments/scripts/run_gemma2b_baseline.py \
 		--dataset natural_questions \
 		--num-examples 100 \
-		--device cuda
+		--device cuda \
+		--filter-no-answer
 
 run-gemma2b-cpu:
 	@echo "Running Gemma 2B baseline on CPU (10 examples)..."

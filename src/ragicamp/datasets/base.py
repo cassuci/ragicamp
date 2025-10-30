@@ -81,6 +81,41 @@ class QADataset(ABC):
         n = min(n, len(self.examples))
         return random.sample(self.examples, n)
     
+    def filter_with_answers(self) -> None:
+        """Filter dataset to only include examples with explicit answers.
+        
+        Removes examples where answers list is empty or contains only empty strings.
+        Updates self.examples in-place.
+        """
+        original_count = len(self.examples)
+        self.examples = [
+            ex for ex in self.examples
+            if ex.answers and any(answer.strip() for answer in ex.answers)
+        ]
+        filtered_count = original_count - len(self.examples)
+        if filtered_count > 0:
+            print(f"Filtered out {filtered_count} examples without explicit answers")
+            print(f"Remaining: {len(self.examples)} examples")
+    
+    def get_examples_with_answers(self, n: Optional[int] = None) -> List[QAExample]:
+        """Get examples that have explicit answers.
+        
+        Args:
+            n: Optional maximum number of examples to return
+            
+        Returns:
+            List of examples with non-empty answers
+        """
+        filtered = [
+            ex for ex in self.examples
+            if ex.answers and any(answer.strip() for answer in ex.answers)
+        ]
+        
+        if n is not None:
+            filtered = filtered[:n]
+        
+        return filtered
+    
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(name='{self.name}', split='{self.split}', size={len(self)})"
 

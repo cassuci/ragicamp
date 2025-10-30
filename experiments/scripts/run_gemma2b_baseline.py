@@ -79,6 +79,11 @@ def main():
         default=0.7,
         help="Generation temperature"
     )
+    parser.add_argument(
+        "--filter-no-answer",
+        action="store_true",
+        help="Filter out questions without explicit answers"
+    )
     
     args = parser.parse_args()
     
@@ -90,6 +95,7 @@ def main():
     print(f"Examples: {args.num_examples}")
     print(f"Device: {args.device}")
     print(f"8-bit quantization: {args.load_in_8bit}")
+    print(f"Filter no-answer questions: {args.filter_no_answer}")
     print("\n" + "=" * 70 + "\n")
     
     # Create model
@@ -129,11 +135,18 @@ def main():
     else:
         raise ValueError(f"Unknown dataset: {args.dataset}")
     
+    print(f"Initial dataset size: {len(dataset)} examples")
+    
+    # Filter questions without explicit answers if requested
+    if args.filter_no_answer:
+        print("\nFiltering questions without explicit answers...")
+        dataset.filter_with_answers()
+    
     # Limit to requested number of examples
     if args.num_examples < len(dataset):
         dataset.examples = dataset.examples[:args.num_examples]
     
-    print(f"✓ Loaded {len(dataset)} examples\n")
+    print(f"✓ Final dataset size: {len(dataset)} examples\n")
     
     # Create metrics
     print("Setting up metrics...")
