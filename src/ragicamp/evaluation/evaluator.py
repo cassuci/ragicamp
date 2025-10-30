@@ -164,6 +164,48 @@ class Evaluator:
         
         return per_question
     
+    def _compute_metric_statistics(
+        self,
+        per_question_metrics: List[Dict[str, Any]]
+    ) -> Dict[str, Dict[str, float]]:
+        """Compute statistics for each metric across all questions.
+        
+        Args:
+            per_question_metrics: List of per-question metrics
+            
+        Returns:
+            Dict mapping metric names to their statistics
+        """
+        if not per_question_metrics:
+            return {}
+        
+        # Get all metric names (excluding metadata fields)
+        metric_names = set()
+        for item in per_question_metrics:
+            for key in item.keys():
+                if key not in ['question_index', 'question'] and isinstance(item.get(key), (int, float)):
+                    metric_names.add(key)
+        
+        # Compute statistics for each metric
+        stats = {}
+        for metric_name in metric_names:
+            values = [
+                item[metric_name] 
+                for item in per_question_metrics 
+                if metric_name in item and item[metric_name] is not None
+            ]
+            
+            if values:
+                stats[metric_name] = {
+                    "mean": sum(values) / len(values),
+                    "min": min(values),
+                    "max": max(values),
+                    "std": (sum((x - sum(values)/len(values))**2 for x in values) / len(values))**0.5
+                    if len(values) > 1 else 0.0
+                }
+        
+        return stats
+    
     def _save_results(
         self,
         examples: List[Any],
@@ -173,113 +215,107 @@ class Evaluator:
         per_question_metrics: List[Dict[str, Any]],
         output_path: str
     ) -> None:
-        """Save evaluation results to file.
+        """Save evaluation results in a clean, modular structure.
+        
+        Saves three files:
+        1. {dataset}_questions.json - Dataset questions and expected answers (reusable)
+        2. {agent}_predictions.json - Predictions with per-question metrics
+        3. {agent}_summary.json - Overall metrics summary with statistics
         
         Args:
             examples: Dataset examples
             predictions: Generated predictions
             responses: Full agent responses
             results: Metric scores
-            output_path: Path to save results
+            per_question_metrics: Per-question metric scores
+            output_path: Base path for output files
         """
         import os
         from datetime import datetime
+        from pathlib import Path
+
+        # Determine output directory and base name
+        output_dir = Path(output_path).parent
+        base_name = Path(output_path).stem
         
-        output = {
-            "results": results,
-            "predictions": [
+        agent_name = results.get("agent_name", "unknown")
+        dataset_name = results.get("dataset_name", "unknown")
+        timestamp = datetime.now().isoformat()
+        
+        print(f"\n{'='*70}")
+        print("SAVING RESULTS")
+        print(f"{'='*70}")
+        
+        # 1. Save dataset questions (reusable across runs)
+        questions_path = output_dir / f"{dataset_name}_questions.json"
+        questions_data = {
+            "dataset_name": dataset_name,
+            "num_questions": len(examples),
+            "questions": [
                 {
                     "id": ex.id,
                     "question": ex.question,
-                    "prediction": pred,
-                    "expected_answer": ex.answers[0] if ex.answers else None,  # Primary expected answer
-                    "all_acceptable_answers": ex.answers,  # All acceptable answers
-                    "references": ex.answers,  # Keep for backward compatibility
-                    "metadata": resp.metadata if hasattr(resp, "metadata") else {}
+                    "expected_answer": ex.answers[0] if ex.answers else None,
+                    "all_acceptable_answers": ex.answers,
                 }
-                for ex, pred, resp in zip(examples, predictions, responses)
+                for ex in examples
             ]
         }
         
-        # Save main results file
-        with open(output_path, 'w') as f:
-            json.dump(output, f, indent=2)
+        with open(questions_path, 'w') as f:
+            json.dump(questions_data, f, indent=2)
         
-        print(f"\nResults saved to {output_path}")
+        print(f"✓ Dataset questions: {questions_path}")
         
-        # Save separate metrics summary file
-        metrics_path = output_path.replace('.json', '_metrics.json')
-        metrics_summary = {
-            "timestamp": datetime.now().isoformat(),
-            "agent_name": results.get("agent_name", "unknown"),
-            "dataset_name": results.get("dataset_name", "unknown"),
+        # 2. Save predictions with per-question metrics
+        predictions_path = output_dir / f"{agent_name}_predictions.json"
+        predictions_data = {
+            "agent_name": agent_name,
+            "dataset_name": dataset_name,
+            "timestamp": timestamp,
+            "num_examples": len(examples),
+            "predictions": [
+                {
+                    "question_id": ex.id,
+                    "question": ex.question,
+                    "prediction": pred,
+                    "metrics": {
+                        k: v for k, v in metrics.items()
+                        if k not in ['question_index', 'question']
+                    },
+                    "metadata": resp.metadata if hasattr(resp, "metadata") else {}
+                }
+                for ex, pred, resp, metrics in zip(
+                    examples, predictions, responses, per_question_metrics
+                )
+            ]
+        }
+        
+        with open(predictions_path, 'w') as f:
+            json.dump(predictions_data, f, indent=2)
+        
+        print(f"✓ Predictions + metrics: {predictions_path}")
+        
+        # 3. Save overall summary with statistics
+        summary_path = output_dir / f"{agent_name}_summary.json"
+        summary_data = {
+            "agent_name": agent_name,
+            "dataset_name": dataset_name,
+            "timestamp": timestamp,
             "num_examples": results.get("num_examples", 0),
-            "metrics": {
-                k: v for k, v in results.items() 
+            "overall_metrics": {
+                k: v for k, v in results.items()
                 if k not in ["num_examples", "agent_name", "dataset_name"]
-            }
+            },
+            "metric_statistics": self._compute_metric_statistics(per_question_metrics)
         }
         
-        with open(metrics_path, 'w') as f:
-            json.dump(metrics_summary, f, indent=2)
+        with open(summary_path, 'w') as f:
+            json.dump(summary_data, f, indent=2)
         
-        print(f"Metrics summary saved to {metrics_path}")
+        print(f"✓ Summary: {summary_path}")
         
-        # Also save a simple text summary
-        txt_path = output_path.replace('.json', '_metrics.txt')
-        with open(txt_path, 'w') as f:
-            f.write("=" * 70 + "\n")
-            f.write("EVALUATION METRICS SUMMARY\n")
-            f.write("=" * 70 + "\n\n")
-            f.write(f"Timestamp: {metrics_summary['timestamp']}\n")
-            f.write(f"Agent: {metrics_summary['agent_name']}\n")
-            f.write(f"Dataset: {metrics_summary['dataset_name']}\n")
-            f.write(f"Examples: {metrics_summary['num_examples']}\n\n")
-            f.write("Metrics:\n")
-            f.write("-" * 70 + "\n")
-            for metric, value in metrics_summary['metrics'].items():
-                if isinstance(value, float):
-                    f.write(f"  {metric:30s}: {value:.4f}\n")
-                else:
-                    f.write(f"  {metric:30s}: {value}\n")
-            f.write("=" * 70 + "\n")
-        
-        print(f"Metrics text summary saved to {txt_path}")
-        
-        # Save per-question metrics
-        per_question_path = output_path.replace('.json', '_per_question.json')
-        per_question_output = {
-            "timestamp": datetime.now().isoformat(),
-            "agent_name": results.get("agent_name", "unknown"),
-            "dataset_name": results.get("dataset_name", "unknown"),
-            "num_examples": len(per_question_metrics),
-            "per_question_metrics": per_question_metrics
-        }
-        
-        with open(per_question_path, 'w') as f:
-            json.dump(per_question_output, f, indent=2)
-        
-        print(f"Per-question metrics saved to {per_question_path}")
-        
-        # Also save a CSV for easy analysis in spreadsheets
-        csv_path = output_path.replace('.json', '_per_question.csv')
-        try:
-            import csv
-            if per_question_metrics:
-                with open(csv_path, 'w', newline='') as f:
-                    # Get all unique field names
-                    fieldnames = set()
-                    for item in per_question_metrics:
-                        fieldnames.update(item.keys())
-                    fieldnames = sorted(list(fieldnames))
-                    
-                    writer = csv.DictWriter(f, fieldnames=fieldnames)
-                    writer.writeheader()
-                    writer.writerows(per_question_metrics)
-                
-                print(f"Per-question CSV saved to {csv_path}")
-        except Exception as e:
-            print(f"Note: Could not save CSV format: {e}")
+        print(f"{'='*70}\n")
     
     def compare_agents(
         self,
