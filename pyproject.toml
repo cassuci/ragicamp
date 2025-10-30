@@ -26,6 +26,7 @@ dependencies = [
     "tqdm>=4.65.0",
     "scikit-learn>=1.2.0",
     "accelerate>=0.20.0",
+    "bert-score>=0.3.13",
 ]
 
 [project.optional-dependencies]
@@ -38,7 +39,7 @@ dev = [
     "mypy>=1.0.0",
 ]
 metrics = [
-    "bert-score>=0.3.13",
+    # bert-score is now in main dependencies
     "bleurt @ git+https://github.com/google-research/bleurt.git",
 ]
 viz = [
