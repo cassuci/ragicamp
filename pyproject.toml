@@ -27,6 +27,7 @@ dependencies = [
     "scikit-learn>=1.2.0",
     "accelerate>=0.20.0",
     "bert-score>=0.3.13",
+    "bleurt",
 ]
 
 [project.optional-dependencies]
@@ -37,10 +38,6 @@ dev = [
     "isort>=5.12.0",
     "flake8>=6.0.0",
     "mypy>=1.0.0",
-]
-metrics = [
-    # bert-score is now in main dependencies
-    "bleurt @ git+https://github.com/google-research/bleurt.git",
 ]
 viz = [
     "matplotlib>=3.5.0",
@@ -67,3 +64,6 @@ python_version = "3.9"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
+
+[tool.uv.sources]
+bleurt = { git = "https://github.com/google-research/bleurt.git" }

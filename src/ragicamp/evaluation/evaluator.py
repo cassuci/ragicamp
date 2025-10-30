@@ -107,6 +107,11 @@ class Evaluator:
         results["agent_name"] = self.agent.name
         results["dataset_name"] = self.dataset.name
         
+        # Compute per-question metrics
+        per_question_metrics = self._compute_per_question_metrics(
+            predictions, references, questions
+        )
+        
         # Save if requested
         if save_predictions and output_path:
             self._save_results(
@@ -114,10 +119,50 @@ class Evaluator:
                 predictions=predictions,
                 responses=responses,
                 results=results,
+                per_question_metrics=per_question_metrics,
                 output_path=output_path
             )
         
         return results
+    
+    def _compute_per_question_metrics(
+        self,
+        predictions: List[str],
+        references: List[Any],
+        questions: List[str]
+    ) -> List[Dict[str, Any]]:
+        """Compute metrics for each individual question.
+        
+        Args:
+            predictions: List of predictions
+            references: List of references
+            questions: List of questions
+            
+        Returns:
+            List of per-question metric scores
+        """
+        per_question = []
+        
+        for i, (pred, ref, q) in enumerate(zip(predictions, references, questions)):
+            question_metrics = {"question_index": i, "question": q}
+            
+            # Compute each metric individually for this question
+            for metric in self.metrics:
+                try:
+                    score = metric.compute_single(pred, ref)
+                    if isinstance(score, dict):
+                        # Handle metrics that return multiple scores (like BERTScore)
+                        for key, value in score.items():
+                            question_metrics[key] = value
+                    else:
+                        question_metrics[metric.name] = score
+                except Exception as e:
+                    # If metric fails for this question, record None
+                    question_metrics[metric.name] = None
+            
+            per_question.append(question_metrics)
+        
+        return per_question
     
     def _save_results(
         self,
@@ -125,6 +170,7 @@ class Evaluator:
         predictions: List[str],
         responses: List[Any],
         results: Dict[str, Any],
+        per_question_metrics: List[Dict[str, Any]],
         output_path: str
     ) -> None:
         """Save evaluation results to file.
@@ -136,6 +182,9 @@ class Evaluator:
             results: Metric scores
             output_path: Path to save results
         """
+        import os
+        from datetime import datetime
+        
         output = {
             "results": results,
             "predictions": [
@@ -152,10 +201,85 @@ class Evaluator:
             ]
         }
         
+        # Save main results file
         with open(output_path, 'w') as f:
             json.dump(output, f, indent=2)
         
         print(f"\nResults saved to {output_path}")
+        
+        # Save separate metrics summary file
+        metrics_path = output_path.replace('.json', '_metrics.json')
+        metrics_summary = {
+            "timestamp": datetime.now().isoformat(),
+            "agent_name": results.get("agent_name", "unknown"),
+            "dataset_name": results.get("dataset_name", "unknown"),
+            "num_examples": results.get("num_examples", 0),
+            "metrics": {
+                k: v for k, v in results.items() 
+                if k not in ["num_examples", "agent_name", "dataset_name"]
+            }
+        }
+        
+        with open(metrics_path, 'w') as f:
+            json.dump(metrics_summary, f, indent=2)
+        
+        print(f"Metrics summary saved to {metrics_path}")
+        
+        # Also save a simple text summary
+        txt_path = output_path.replace('.json', '_metrics.txt')
+        with open(txt_path, 'w') as f:
+            f.write("=" * 70 + "\n")
+            f.write("EVALUATION METRICS SUMMARY\n")
+            f.write("=" * 70 + "\n\n")
+            f.write(f"Timestamp: {metrics_summary['timestamp']}\n")
+            f.write(f"Agent: {metrics_summary['agent_name']}\n")
+            f.write(f"Dataset: {metrics_summary['dataset_name']}\n")
+            f.write(f"Examples: {metrics_summary['num_examples']}\n\n")
+            f.write("Metrics:\n")
+            f.write("-" * 70 + "\n")
+            for metric, value in metrics_summary['metrics'].items():
+                if isinstance(value, float):
+                    f.write(f"  {metric:30s}: {value:.4f}\n")
+                else:
+                    f.write(f"  {metric:30s}: {value}\n")
+            f.write("=" * 70 + "\n")
+        
+        print(f"Metrics text summary saved to {txt_path}")
+        
+        # Save per-question metrics
+        per_question_path = output_path.replace('.json', '_per_question.json')
+        per_question_output = {
+            "timestamp": datetime.now().isoformat(),
+            "agent_name": results.get("agent_name", "unknown"),
+            "dataset_name": results.get("dataset_name", "unknown"),
+            "num_examples": len(per_question_metrics),
+            "per_question_metrics": per_question_metrics
+        }
+        
+        with open(per_question_path, 'w') as f:
+            json.dump(per_question_output, f, indent=2)
+        
+        print(f"Per-question metrics saved to {per_question_path}")
+        
+        # Also save a CSV for easy analysis in spreadsheets
+        csv_path = output_path.replace('.json', '_per_question.csv')
+        try:
+            import csv
+            if per_question_metrics:
+                with open(csv_path, 'w', newline='') as f:
+                    # Get all unique field names
+                    fieldnames = set()
+                    for item in per_question_metrics:
+                        fieldnames.update(item.keys())
+                    fieldnames = sorted(list(fieldnames))
+                    
+                    writer = csv.DictWriter(f, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(per_question_metrics)
+                
+                print(f"Per-question CSV saved to {csv_path}")
+        except Exception as e:
+            print(f"Note: Could not save CSV format: {e}")
     
     def compare_agents(
         self,

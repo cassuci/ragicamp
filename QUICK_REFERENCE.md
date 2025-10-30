@@ -169,11 +169,15 @@ make run-gemma2b
 
 # 4. Check results
 cat outputs/gemma2b_baseline_results.json | jq '.predictions[0]'
+cat outputs/gemma2b_baseline_results_metrics.txt  # Quick metrics view
 
 # 5. Run full evaluation
 make run-gemma2b-full
 
-# 6. Compare with other datasets
+# 6. Compare metrics easily
+cat outputs/*_metrics.txt
+
+# 7. Compare with other datasets
 uv run python experiments/scripts/run_gemma2b_baseline.py \
     --dataset hotpotqa --num-examples 100 --filter-no-answer
 ```

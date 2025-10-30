@@ -97,7 +97,7 @@ run-gemma2b-all-metrics:
 	@echo "Running Gemma 2B with all metrics (EM, F1, BERTScore, BLEURT)..."
 	uv run python experiments/scripts/run_gemma2b_baseline.py \
 		--dataset natural_questions \
-		--num-examples 100 \
+		--num-examples 10 \
 		--filter-no-answer \
 		--metrics exact_match f1 bertscore bleurt
 
