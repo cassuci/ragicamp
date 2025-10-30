@@ -120,7 +120,7 @@ class BLEURTMetric(Metric):
         """Compute BLEURT scores.
         
         Returns:
-            Dict with average BLEURT score
+            Dict with average BLEURT score (for overall metrics)
         """
         # Handle multiple references - take first one for now
         refs = []
@@ -133,8 +133,9 @@ class BLEURTMetric(Metric):
         # Compute BLEURT scores
         scores = self.scorer.score(references=refs, candidates=predictions)
         
+        # Only return the mean score (not individual scores)
+        # Individual scores are handled by compute_single() for per-question metrics
         return {
-            "bleurt": float(sum(scores) / len(scores)) if scores else 0.0,
-            "bleurt_scores": [float(s) for s in scores]  # Individual scores
+            "bleurt": float(sum(scores) / len(scores)) if scores else 0.0
         }
 
