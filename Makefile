@@ -12,11 +12,14 @@ help:
 	@echo "  make format           - Format code"
 	@echo "  make clean            - Clean generated files"
 	@echo ""
-	@echo "  make run-gemma2b      - Run Gemma 2B baseline (quick test, filtered)"
-	@echo "  make run-gemma2b-full - Run Gemma 2B baseline (100 examples, filtered)"
-	@echo "  make run-baseline     - Run DirectLLM baseline"
+	@echo "  make run-gemma2b           - Run Gemma 2B baseline (quick test, filtered)"
+	@echo "  make run-gemma2b-full      - Run Gemma 2B baseline (100 examples, filtered)"
+	@echo "  make run-gemma2b-bertscore - Run with BERTScore metric"
+	@echo "  make run-gemma2b-bleurt    - Run with BLEURT metric"
+	@echo "  make run-gemma2b-all-metrics - Run with all metrics"
+	@echo "  make run-baseline          - Run DirectLLM baseline"
 	@echo ""
-	@echo "Note: Gemma 2B commands filter out questions without explicit answers"
+	@echo "Note: Advanced metrics require: uv sync --extra metrics"
 	@echo ""
 
 install:
@@ -72,6 +75,31 @@ run-gemma2b-8bit:
 		--dataset natural_questions \
 		--num-examples 100 \
 		--load-in-8bit
+
+# Advanced metrics
+run-gemma2b-bertscore:
+	@echo "Running Gemma 2B with BERTScore metric..."
+	uv run python experiments/scripts/run_gemma2b_baseline.py \
+		--dataset natural_questions \
+		--num-examples 100 \
+		--filter-no-answer \
+		--metrics exact_match f1 bertscore
+
+run-gemma2b-bleurt:
+	@echo "Running Gemma 2B with BLEURT metric..."
+	uv run python experiments/scripts/run_gemma2b_baseline.py \
+		--dataset natural_questions \
+		--num-examples 100 \
+		--filter-no-answer \
+		--metrics exact_match f1 bleurt
+
+run-gemma2b-all-metrics:
+	@echo "Running Gemma 2B with all metrics (EM, F1, BERTScore, BLEURT)..."
+	uv run python experiments/scripts/run_gemma2b_baseline.py \
+		--dataset natural_questions \
+		--num-examples 100 \
+		--filter-no-answer \
+		--metrics exact_match f1 bertscore bleurt
 
 # Other baselines
 run-baseline:

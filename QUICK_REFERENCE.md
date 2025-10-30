@@ -78,13 +78,17 @@ filtered = dataset.get_examples_with_answers(n=100)
 ## Common Commands
 
 ```bash
-make help                # Show all commands
-make install             # Install dependencies
-make run-gemma2b         # Quick test (10 examples)
-make run-gemma2b-full    # Full run (100 examples)
-make run-gemma2b-cpu     # Run on CPU
-make run-gemma2b-8bit    # With 8-bit quantization
-make clean               # Clean outputs
+make help                      # Show all commands
+make install                   # Install dependencies
+make install-all               # Install with all extras
+make run-gemma2b               # Quick test (10 examples)
+make run-gemma2b-full          # Full run (100 examples)
+make run-gemma2b-cpu           # Run on CPU
+make run-gemma2b-8bit          # With 8-bit quantization
+make run-gemma2b-bertscore     # With BERTScore metric
+make run-gemma2b-bleurt        # With BLEURT metric
+make run-gemma2b-all-metrics   # All metrics (EM, F1, BERT, BLEURT)
+make clean                     # Clean outputs
 ```
 
 ## Datasets
@@ -103,10 +107,38 @@ make clean               # Clean outputs
 - Default: Full precision (~4GB GPU RAM)
 - `--load-in-8bit`: 8-bit quantization (~2GB GPU RAM)
 
+## Metrics
+
+### Default (Fast)
+```bash
+--metrics exact_match f1
+```
+
+### With BERTScore (Semantic)
+```bash
+--metrics exact_match f1 bertscore
+```
+
+### With BLEURT (Best Quality)
+```bash
+--metrics exact_match f1 bleurt
+```
+
+### All Metrics
+```bash
+--metrics exact_match f1 bertscore bleurt
+```
+
+**Note**: BERTScore and BLEURT require:
+```bash
+uv sync --extra metrics
+```
+
 ## Documentation
 
 - `QUICK_START_GEMMA.md` - 3-step quick start
 - `GEMMA2B_QUICKSTART.md` - Comprehensive guide
+- `METRICS_GUIDE.md` - **NEW: Metrics guide**
 - `ANSWER_FILTERING_UPDATE.md` - Filtering guide
 - `USAGE.md` - Detailed usage
 - `ARCHITECTURE.md` - System design

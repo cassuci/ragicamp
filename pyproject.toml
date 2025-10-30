@@ -39,6 +39,7 @@ dev = [
 ]
 metrics = [
     "bert-score>=0.3.13",
+    "bleurt @ git+https://github.com/google-research/bleurt.git",
 ]
 viz = [
     "matplotlib>=3.5.0",

@@ -22,6 +22,19 @@ from ragicamp.datasets.nq import NaturalQuestionsDataset
 from ragicamp.datasets.triviaqa import TriviaQADataset
 from ragicamp.evaluation.evaluator import Evaluator
 from ragicamp.metrics.exact_match import ExactMatchMetric, F1Metric
+
+# Optional metrics
+try:
+    from ragicamp.metrics.bertscore import BERTScoreMetric
+    BERTSCORE_AVAILABLE = True
+except ImportError:
+    BERTSCORE_AVAILABLE = False
+
+try:
+    from ragicamp.metrics.bleurt import BLEURTMetric
+    BLEURT_AVAILABLE = True
+except ImportError:
+    BLEURT_AVAILABLE = False
 from ragicamp.models.huggingface import HuggingFaceModel
 
 
@@ -83,6 +96,26 @@ def main():
         "--filter-no-answer",
         action="store_true",
         help="Filter out questions without explicit answers"
+    )
+    parser.add_argument(
+        "--metrics",
+        type=str,
+        nargs="+",
+        default=["exact_match", "f1"],
+        choices=["exact_match", "f1", "bertscore", "bleurt"],
+        help="Metrics to compute (default: exact_match f1)"
+    )
+    parser.add_argument(
+        "--bertscore-model",
+        type=str,
+        default="microsoft/deberta-base-mnli",
+        help="Model for BERTScore (default: deberta-base-mnli for speed)"
+    )
+    parser.add_argument(
+        "--bleurt-checkpoint",
+        type=str,
+        default="BLEURT-20",
+        help="BLEURT checkpoint (default: BLEURT-20)"
     )
     
     args = parser.parse_args()
@@ -150,11 +183,45 @@ def main():
     
     # Create metrics
     print("Setting up metrics...")
-    metrics = [
-        ExactMatchMetric(),
-        F1Metric()
-    ]
-    print("✓ Metrics: Exact Match, F1\n")
+    metrics = []
+    metric_names = []
+    
+    if "exact_match" in args.metrics:
+        metrics.append(ExactMatchMetric())
+        metric_names.append("Exact Match")
+    
+    if "f1" in args.metrics:
+        metrics.append(F1Metric())
+        metric_names.append("F1")
+    
+    if "bertscore" in args.metrics:
+        if not BERTSCORE_AVAILABLE:
+            print("⚠ BERTScore requested but not installed. Install with:")
+            print("  uv sync --extra metrics")
+            sys.exit(1)
+        print(f"  Loading BERTScore model: {args.bertscore_model}...")
+        metrics.append(BERTScoreMetric(model_type=args.bertscore_model))
+        metric_names.append("BERTScore")
+    
+    if "bleurt" in args.metrics:
+        if not BLEURT_AVAILABLE:
+            print("⚠ BLEURT requested but not installed. Install with:")
+            print("  uv sync --extra metrics")
+            sys.exit(1)
+        print(f"  Loading BLEURT checkpoint: {args.bleurt_checkpoint}...")
+        try:
+            metrics.append(BLEURTMetric(checkpoint=args.bleurt_checkpoint))
+            metric_names.append("BLEURT")
+        except Exception as e:
+            print(f"⚠ Failed to load BLEURT: {e}")
+            print("  Continuing without BLEURT...")
+    
+    if not metrics:
+        print("⚠ No metrics selected, using default: Exact Match, F1")
+        metrics = [ExactMatchMetric(), F1Metric()]
+        metric_names = ["Exact Match", "F1"]
+    
+    print(f"✓ Metrics: {', '.join(metric_names)}\n")
     
     # Create evaluator
     evaluator = Evaluator(
