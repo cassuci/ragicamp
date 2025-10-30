@@ -1,25 +1,107 @@
-"""Exact match and F1 metrics."""
+"""Exact match and F1 metrics with normalization.
+
+Follows best practices from SQuAD and other QA benchmarks:
+- Lowercase normalization
+- Article removal (a, an, the)
+- Punctuation removal
+- Whitespace normalization
+- Optional: stemming/lemmatization for even more robustness
+"""
 
 import re
 import string
 from collections import Counter
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Union, Optional
 
 from ragicamp.metrics.base import Metric
 
 
-class ExactMatchMetric(Metric):
-    """Exact match metric with normalization."""
+def normalize_answer(text: str, 
+                     lowercase: bool = True,
+                     remove_articles: bool = True,
+                     remove_punctuation: bool = True,
+                     remove_extra_whitespace: bool = True,
+                     stemmer: Optional[Any] = None) -> str:
+    """Normalize answer text following SQuAD evaluation practices.
     
-    def __init__(self, normalize: bool = True, **kwargs: Any):
+    Args:
+        text: Text to normalize
+        lowercase: Convert to lowercase
+        remove_articles: Remove articles (a, an, the)
+        remove_punctuation: Remove punctuation
+        remove_extra_whitespace: Collapse multiple spaces
+        stemmer: Optional stemmer (e.g., PorterStemmer or SnowballStemmer)
+        
+    Returns:
+        Normalized text
+        
+    Note:
+        This follows the official SQuAD evaluation script normalization.
+        Stemming is NOT standard in SQuAD but can help with word variations.
+    """
+    # Lowercase
+    if lowercase:
+        text = text.lower()
+    
+    # Remove punctuation
+    if remove_punctuation:
+        text = text.translate(str.maketrans('', '', string.punctuation))
+    
+    # Remove articles (standard in SQuAD)
+    if remove_articles:
+        text = re.sub(r'\b(a|an|the)\b', ' ', text)
+    
+    # Normalize whitespace
+    if remove_extra_whitespace:
+        text = ' '.join(text.split())
+    
+    # Optional stemming (not standard, but can be useful)
+    if stemmer is not None:
+        tokens = text.split()
+        tokens = [stemmer.stem(token) for token in tokens]
+        text = ' '.join(tokens)
+    
+    return text.strip()
+
+
+class ExactMatchMetric(Metric):
+    """Exact match metric with normalization.
+    
+    Follows SQuAD evaluation best practices:
+    - Case-insensitive matching
+    - Removes articles (a, an, the)
+    - Removes punctuation
+    - Normalizes whitespace
+    
+    Optional:
+    - Stemming for more aggressive normalization
+    """
+    
+    def __init__(self, 
+                 normalize: bool = True,
+                 use_stemming: bool = False,
+                 **kwargs: Any):
         """Initialize exact match metric.
         
         Args:
-            normalize: Whether to normalize text before comparison
+            normalize: Whether to normalize text before comparison (default: True)
+            use_stemming: Use Porter stemmer for aggressive normalization (default: False)
             **kwargs: Additional configuration
         """
         super().__init__(name="exact_match", **kwargs)
         self.normalize = normalize
+        self.use_stemming = use_stemming
+        
+        # Lazy import stemmer only if needed
+        self.stemmer = None
+        if use_stemming:
+            try:
+                from nltk.stem import PorterStemmer
+                self.stemmer = PorterStemmer()
+            except ImportError:
+                print("⚠️  NLTK not installed. Stemming disabled.")
+                print("   Install with: pip install nltk")
+                self.use_stemming = False
     
     def compute(
         self,
@@ -35,8 +117,8 @@ class ExactMatchMetric(Metric):
             refs = [ref] if isinstance(ref, str) else ref
             
             if self.normalize:
-                pred_norm = self._normalize(pred)
-                refs_norm = [self._normalize(r) for r in refs]
+                pred_norm = normalize_answer(pred, stemmer=self.stemmer if self.use_stemming else None)
+                refs_norm = [normalize_answer(r, stemmer=self.stemmer if self.use_stemming else None) for r in refs]
             else:
                 pred_norm = pred
                 refs_norm = refs
@@ -46,30 +128,47 @@ class ExactMatchMetric(Metric):
             scores.append(score)
         
         return sum(scores) / len(scores) if scores else 0.0
-    
-    def _normalize(self, text: str) -> str:
-        """Normalize text for comparison."""
-        # Lowercase
-        text = text.lower()
-        
-        # Remove punctuation
-        text = text.translate(str.maketrans('', '', string.punctuation))
-        
-        # Remove articles
-        text = re.sub(r'\b(a|an|the)\b', ' ', text)
-        
-        # Normalize whitespace
-        text = ' '.join(text.split())
-        
-        return text
 
 
 class F1Metric(Metric):
-    """Token-level F1 metric."""
+    """Token-level F1 metric with normalization.
     
-    def __init__(self, **kwargs: Any):
-        """Initialize F1 metric."""
+    Computes F1 score at the token level following SQuAD practices:
+    - Normalizes text before tokenization
+    - Uses bag-of-words token matching
+    - Takes maximum F1 when multiple references
+    
+    This is more lenient than exact match and handles:
+    - Word order differences
+    - Partial matches
+    - Extra/missing words
+    """
+    
+    def __init__(self, 
+                 normalize: bool = True,
+                 use_stemming: bool = False,
+                 **kwargs: Any):
+        """Initialize F1 metric.
+        
+        Args:
+            normalize: Whether to normalize text before tokenization (default: True)
+            use_stemming: Use Porter stemmer for aggressive normalization (default: False)
+            **kwargs: Additional configuration
+        """
         super().__init__(name="f1", **kwargs)
+        self.normalize = normalize
+        self.use_stemming = use_stemming
+        
+        # Lazy import stemmer only if needed
+        self.stemmer = None
+        if use_stemming:
+            try:
+                from nltk.stem import PorterStemmer
+                self.stemmer = PorterStemmer()
+            except ImportError:
+                print("⚠️  NLTK not installed. Stemming disabled.")
+                print("   Install with: pip install nltk")
+                self.use_stemming = False
     
     def compute(
         self,
@@ -90,14 +189,31 @@ class F1Metric(Metric):
         return sum(scores) / len(scores) if scores else 0.0
     
     def _compute_f1(self, prediction: str, reference: str) -> float:
-        """Compute F1 between prediction and single reference."""
-        pred_tokens = prediction.lower().split()
-        ref_tokens = reference.lower().split()
+        """Compute F1 between prediction and single reference.
+        
+        Args:
+            prediction: Predicted answer
+            reference: Reference answer
+            
+        Returns:
+            F1 score between 0 and 1
+        """
+        # Normalize text
+        if self.normalize:
+            pred_norm = normalize_answer(prediction, stemmer=self.stemmer if self.use_stemming else None)
+            ref_norm = normalize_answer(reference, stemmer=self.stemmer if self.use_stemming else None)
+        else:
+            pred_norm = prediction
+            ref_norm = reference
+        
+        # Tokenize
+        pred_tokens = pred_norm.split()
+        ref_tokens = ref_norm.split()
         
         if len(pred_tokens) == 0 or len(ref_tokens) == 0:
-            return 0.0
+            return 1.0 if len(pred_tokens) == len(ref_tokens) else 0.0
         
-        # Compute token overlap
+        # Compute token overlap using bag-of-words
         common = Counter(pred_tokens) & Counter(ref_tokens)
         num_common = sum(common.values())
         
