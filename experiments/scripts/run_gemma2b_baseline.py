@@ -254,7 +254,10 @@ def main():
             else:
                 print(f"  {metric_name}: {score}")
     
-    print(f"\n✓ Results saved to: {args.output}")
+    # Note: Evaluator saves 3 files (paths shown above):
+    # - {dataset}_questions.json
+    # - {agent}_predictions.json
+    # - {agent}_summary.json
     print("=" * 70)
 
 
