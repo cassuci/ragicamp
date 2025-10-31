@@ -36,6 +36,7 @@ class DenseRetriever(Retriever):
         """
         super().__init__(name, **kwargs)
         
+        self.embedding_model_name = embedding_model  # Store the model name
         self.encoder = SentenceTransformer(embedding_model)
         self.embedding_dim = self.encoder.get_sentence_embedding_dimension()
         self.index_type = index_type
@@ -117,7 +118,7 @@ class DenseRetriever(Retriever):
         # Save config
         config = {
             "name": self.name,
-            "embedding_model": self.encoder.model_name if hasattr(self.encoder, 'model_name') else "unknown",
+            "embedding_model": self.embedding_model_name,
             "index_type": self.index_type,
             "num_documents": len(self.documents),
             "embedding_dim": self.embedding_dim

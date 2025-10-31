@@ -15,19 +15,28 @@ help:
 	@echo "  make setup-bleurt         - Download BLEURT checkpoint"
 	@echo "  make setup                - Full setup (install + BLEURT)"
 	@echo ""
-	@echo "🏋️  TRAINING & INDEXING"
-	@echo "  make train-fixed-rag      - Train FixedRAG (index docs + save)"
-	@echo "  make train-fixed-rag-small- Quick test (1000 docs)"
-	@echo "  make index-wikipedia      - Index Wikipedia for NQ"
-	@echo "  make index-wikipedia-small- Quick test (1000 docs)"
+	@echo "🏋️  INDEXING & CORPUS"
+	@echo "  make index-corpus         - Index corpus (new architecture)"
+	@echo "  make index-wiki-simple    - Index Simple Wikipedia (~200k articles)"
+	@echo "  make index-wiki-small     - Quick test (10k articles)"
 	@echo "  make list-artifacts       - List saved artifacts"
 	@echo "  make clean-artifacts      - Remove all artifacts"
+	@echo ""
+	@echo "📋 EXPERIMENT MANAGEMENT"
+	@echo "  make demo-architecture    - Demo new architecture"
+	@echo "  make list-experiments     - List all experiments"
+	@echo "  make compare-experiments  - Compare experiment results"
 	@echo ""
 	@echo "🚀 EVALUATION (Baseline LLM)"
 	@echo "  make run-gemma2b          - Quick test (10 examples, EM + F1)"
 	@echo "  make run-gemma2b-full     - Full eval (100 examples, EM + F1)"
 	@echo ""
-	@echo "📊 ADVANCED METRICS"
+	@echo "🔍 EVALUATION (FixedRAG with Retrieval)"
+	@echo "  make run-fixed-rag        - Quick test (10 examples)"
+	@echo "  make run-fixed-rag-full   - Full eval (100 examples)"
+	@echo "  make run-fixed-rag-bertscore - With BERTScore"
+	@echo ""
+	@echo "📊 ADVANCED METRICS (Baseline)"
 	@echo "  make run-bertscore        - With BERTScore"
 	@echo "  make run-bleurt           - With BLEURT (requires setup-bleurt)"
 	@echo "  make run-all-metrics      - With all metrics (EM, F1, BERT, BLEURT)"
@@ -104,7 +113,7 @@ lint:
 
 format:
 	@echo "✨ Formatting code..."
-	uv run black src/ tests/ experiments/ --line-length 100
+	uv run black src/ tests/ experiments/ --line-length 99
 	uv run isort src/ tests/ experiments/ --profile black
 	@echo "✅ Code formatted!"
 
@@ -136,52 +145,6 @@ run-gemma2b:
 		--device cuda \
 		--filter-no-answer \
 		--metrics exact_match f1
-
-run-gemma2b-full:
-	@echo "🚀 Running Gemma 2B baseline (100 examples, EM + F1)..."
-	@echo "⏱️  This will take ~15-20 minutes on GPU"
-	uv run python experiments/scripts/run_gemma2b_baseline.py \
-		--dataset natural_questions \
-		--num-examples 100 \
-		--device cuda \
-		--filter-no-answer \
-		--metrics exact_match f1
-
-# ============================================================================
-# Evaluation - Advanced Metrics
-# ============================================================================
-
-run-bertscore:
-	@echo "🚀 Running with BERTScore metric..."
-	@echo "⏱️  This will take ~3-4 minutes on GPU (10 examples)"
-	uv run python experiments/scripts/run_gemma2b_baseline.py \
-		--dataset natural_questions \
-		--num-examples 10 \
-		--device cuda \
-		--filter-no-answer \
-		--metrics exact_match f1 bertscore
-
-run-bleurt:
-	@echo "🚀 Running with BLEURT metric..."
-	@echo "⚠️  Make sure you've run: make setup-bleurt"
-	@echo "⏱️  This will take ~4-5 minutes on GPU (10 examples)"
-	uv run python experiments/scripts/run_gemma2b_baseline.py \
-		--dataset natural_questions \
-		--num-examples 10 \
-		--device cuda \
-		--filter-no-answer \
-		--metrics exact_match f1 bleurt
-
-run-all-metrics:
-	@echo "🚀 Running with ALL metrics (EM, F1, BERTScore, BLEURT)..."
-	@echo "⚠️  Make sure you've run: make setup-bleurt"
-	@echo "⏱️  This will take ~5-6 minutes on GPU (10 examples)"
-	uv run python experiments/scripts/run_gemma2b_baseline.py \
-		--dataset natural_questions \
-		--num-examples 10 \
-		--device cuda \
-		--filter-no-answer \
-		--metrics exact_match f1 bertscore bleurt
 
 # ============================================================================
 # Evaluation - Options
@@ -222,42 +185,79 @@ compare-baselines:
 	@echo "📊 Comparing baselines..."
 	uv run python experiments/scripts/compare_baselines.py
 
+
+# ============================================================================
+# RAG Evaluation (with trained retriever)
+# ============================================================================
+
+run-fixed-rag:
+	@echo "🔍 Running FixedRAG evaluation (quick test - 10 examples)..."
+	@if [ ! -d artifacts/retrievers/wikipedia_small ]; then \
+		echo "⚠️  Wikipedia index not found. Indexing first..."; \
+		$(MAKE) index-wiki-small; \
+	fi
+	uv run python experiments/scripts/run_fixed_rag_eval.py \
+		--retriever-artifact wikipedia_small \
+		--top-k 3 \
+		--dataset natural_questions \
+		--num-examples 10 \
+		--filter-no-answer \
+		--metrics exact_match f1 bertscore bleurt \
+		--load-in-8bit \
+		--output outputs/fixed_rag_small_results.json
+
+run-fixed-rag-full:
+	@echo "🔍 Running FixedRAG evaluation (full - 100 examples)..."
+	@if [ ! -d artifacts/retrievers/wikipedia_small ]; then \
+		echo "⚠️  Wikipedia index not found. Indexing first..."; \
+		$(MAKE) index-wiki-small; \
+	fi
+	uv run python experiments/scripts/run_fixed_rag_eval.py \
+		--retriever-artifact wikipedia_small \
+		--top-k 5 \
+		--dataset natural_questions \
+		--num-examples 100 \
+		--filter-no-answer \
+		--metrics exact_match f1 \
+		--load-in-8bit \
+		--output outputs/fixed_rag_full_results.json
+
 # ============================================================================
 # Training & Indexing
 # ============================================================================
 
-train-fixed-rag:
-	@echo "🏋️  Training FixedRAG agent (indexing documents)..."
-	@echo "This will:"
-	@echo "  1. Load Natural Questions dataset"
-	@echo "  2. Create document index with embeddings"
-	@echo "  3. Save retriever and agent artifacts"
+index-wiki:
+	@echo "📚 Indexing Full English Wikipedia..."
+	@echo "This will download and index ~6M Wikipedia articles"
+	@echo "⚠️  First run will download several GB of data"
+	@echo "⚠️  This will take HOURS to complete"
 	@echo ""
-	uv run python experiments/scripts/train_fixed_rag.py \
-		--agent-name fixed_rag_nq_v1 \
-		--retriever-name wikipedia_nq_v1 \
-		--top-k 5
-
-train-fixed-rag-small:
-	@echo "🏋️  Training FixedRAG (small test version - 1000 docs)..."
-	uv run python experiments/scripts/train_fixed_rag.py \
-		--agent-name fixed_rag_nq_small \
-		--retriever-name wikipedia_nq_small \
-		--num-docs 1000 \
-		--top-k 3
-
-index-wikipedia:
-	@echo "📚 Indexing Wikipedia for Natural Questions..."
-	uv run python experiments/scripts/index_wikipedia_for_nq.py \
-		--artifact-name wikipedia_nq_v1 \
-		--embedding-model all-MiniLM-L6-v2
-
-index-wikipedia-small:
-	@echo "📚 Indexing Wikipedia (small test - 1000 docs)..."
-	uv run python experiments/scripts/index_wikipedia_for_nq.py \
-		--artifact-name wikipedia_nq_small \
+	uv run python experiments/scripts/index_corpus.py \
+		--corpus-name wikipedia_en \
+		--corpus-version 20231101.en \
 		--embedding-model all-MiniLM-L6-v2 \
-		--num-docs 1000
+		--artifact-name wikipedia_en_full
+
+index-wiki-simple:
+	@echo "📚 Indexing Simple English Wikipedia (full ~200k articles)..."
+	@echo "⚠️  This will take 30-60 minutes"
+	@echo ""
+	uv run python experiments/scripts/index_corpus.py \
+		--corpus-name wikipedia_simple \
+		--corpus-version 20231101.simple \
+		--embedding-model all-MiniLM-L6-v2 \
+		--artifact-name wikipedia_simple_full
+
+index-wiki-small:
+	@echo "📚 Quick test: Indexing 10k Simple Wikipedia articles..."
+	@echo "⚠️  For TESTING ONLY - use index-wiki-simple for evaluation"
+	@echo ""
+	uv run python experiments/scripts/index_corpus.py \
+		--corpus-name wikipedia_simple \
+		--corpus-version 20231101.simple \
+		--embedding-model all-MiniLM-L6-v2 \
+		--max-docs 10000 \
+		--artifact-name wikipedia_small
 
 list-artifacts:
 	@echo "📦 Saved artifacts:"
@@ -276,6 +276,42 @@ clean-artifacts:
 	@echo "🧹 Cleaning artifacts..."
 	rm -rf artifacts/
 	@echo "✓ Artifacts removed"
+
+# ============================================================================
+# New Architecture: Corpus, Config, OutputManager
+# ============================================================================
+
+demo-architecture:
+	@echo "🎭 Running architecture demo..."
+	uv run python experiments/scripts/demo_new_architecture.py
+
+index-corpus:
+	@echo "📚 Indexing corpus (new architecture)..."
+	uv run python experiments/scripts/index_corpus.py \
+		--corpus-name wikipedia_simple \
+		--corpus-version 20231101.simple \
+		--max-docs 10000 \
+		--artifact-name wikipedia_corpus_v1
+
+list-experiments:
+	@echo "📋 Listing all experiments..."
+	@uv run python -c "from ragicamp.output import OutputManager; \
+		mgr = OutputManager(); \
+		exps = mgr.list_experiments(limit=20); \
+		print(f'Found {len(exps)} experiments:'); \
+		for exp in exps: print(f\"  {exp['experiment_name']:40} | {exp.get('dataset','N/A'):15} | {exp.get('timestamp','N/A')[:19]}\")"
+
+compare-experiments:
+	@echo "📊 Comparing experiments..."
+	@echo "Usage: make compare-experiments EXPERIMENTS='exp1 exp2 exp3'"
+	@if [ -z "$(EXPERIMENTS)" ]; then \
+		echo "⚠️  Please specify EXPERIMENTS variable"; \
+		echo "Example: make compare-experiments EXPERIMENTS='fixed_rag_v1 baseline_v1'"; \
+		exit 1; \
+	fi
+	@uv run python -c "from ragicamp.output import OutputManager; \
+		mgr = OutputManager(); \
+		mgr.print_comparison('$(EXPERIMENTS)'.split())"
 
 # ============================================================================
 # Analysis

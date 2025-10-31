@@ -2,6 +2,38 @@
 
 Common issues and solutions for RAGiCamp.
 
+---
+
+## NumPy Version Compatibility
+
+**Symptom:**
+```
+AttributeError: _ARRAY_API not found
+A module that was compiled using NumPy 1.x cannot be run in NumPy 2.2.6
+```
+
+**Cause:**  
+TensorFlow and some other dependencies were compiled with NumPy 1.x and are incompatible with NumPy 2.x.
+
+**Solution:**  
+The dependencies in `pyproject.toml` are already pinned to `numpy>=1.21.0,<2.0.0`. If you still see this issue:
+
+```bash
+# Resync dependencies
+uv sync
+
+# Or manually downgrade numpy
+uv pip install "numpy<2.0.0"
+```
+
+**Verify the fix:**
+```bash
+uv run python -c "import numpy; print(numpy.__version__)"
+# Should show 1.x.x, not 2.x.x
+```
+
+---
+
 ## Build Errors
 
 ### Error: "Dependency cannot be a direct reference"

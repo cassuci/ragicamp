@@ -32,17 +32,122 @@ RAGiCamp is a modular, production-ready framework for Retrieval-Augmented Genera
 agents/      - Decision logic (answer questions)
 models/      - LLM interfaces (generate text)
 retrievers/  - Document retrieval (find relevant docs)
+corpus/      - Document sources (NO answers! prevents data leakage)
+datasets/    - QA datasets (questions + answers for evaluation)
 policies/    - Action selection (for adaptive agents)
 metrics/     - Evaluation (compute scores)
-datasets/    - Data loading
 training/    - Training loops
 evaluation/  - Evaluation orchestration
+config/      - Experiment configuration (dataclasses + YAML)
+output/      - Output management (organized results)
 utils/       - Shared utilities
 ```
+
+**Critical Distinction:**
+- `corpus/` = Documents for retrieval (Wikipedia, PubMed) - NO ANSWER INFORMATION
+- `datasets/` = QA pairs for evaluation (Natural Questions, TriviaQA) - WITH ANSWERS
 
 ---
 
 ## Code Patterns
+
+### DocumentCorpus Pattern (NEW)
+
+**Purpose:** Provide documents for retrieval WITHOUT answer information (prevents data leakage)
+
+```python
+from ragicamp.corpus import DocumentCorpus, CorpusConfig
+
+# Always use configuration
+config = CorpusConfig(
+    name="wikipedia_simple",
+    source="wikimedia/wikipedia",
+    version="20231101.simple",
+    max_docs=10000  # Optional limit
+)
+
+# Load corpus
+corpus = WikipediaCorpus(config)
+
+# Iterate documents - NO ANSWERS!
+for doc in corpus.load():
+    # doc.text contains article text
+    # doc.metadata may have title, url, etc
+    # doc.metadata MUST NOT have answers
+    pass
+```
+
+**Rules:**
+- ❌ NEVER include answer information in corpus documents
+- ✅ Use for indexing retrievers
+- ✅ Separate from QA datasets
+- ✅ One corpus can serve multiple datasets
+
+### ExperimentConfig Pattern (NEW)
+
+**Purpose:** Single source of truth for experiment configuration
+
+```python
+from ragicamp.config import ExperimentConfig
+
+# Load from YAML
+config = ExperimentConfig.from_yaml("configs/my_experiment.yaml")
+
+# Access typed configuration
+print(config.corpus.name)
+print(config.retriever.top_k)
+print(config.model.load_in_8bit)
+
+# Save configuration
+config.to_yaml("outputs/experiment_v1/config.yaml")
+
+# Or create programmatically
+from ragicamp.config import create_fixed_rag_config
+config = create_fixed_rag_config(dataset="natural_questions")
+```
+
+**Rules:**
+- ✅ Use dataclasses, not dictionaries
+- ✅ All experiments have a config file
+- ✅ Config saved with results for reproducibility
+- ❌ Don't hard-code values in scripts
+
+### OutputManager Pattern (NEW)
+
+**Purpose:** Organize experiment results cleanly
+
+```python
+from ragicamp.output import OutputManager
+
+mgr = OutputManager()
+
+# Create experiment directory
+exp_dir = mgr.create_experiment_dir("my_experiment_v1")
+
+# Save experiment
+mgr.save_experiment(config, results, exp_dir)
+
+# List experiments
+experiments = mgr.list_experiments(dataset="natural_questions")
+
+# Compare experiments
+mgr.compare_experiments(["exp1", "exp2", "exp3"])
+mgr.print_comparison(["exp1", "exp2"], metrics=["exact_match", "f1"])
+```
+
+**Directory Structure:**
+```
+outputs/
+├── experiments/
+│   ├── experiment_name/
+│   │   ├── config.yaml        # Full config
+│   │   ├── metadata.json      # Timestamp, git hash, etc
+│   │   ├── contexts.json      # Retrieved contexts (if RAG)
+│   │   ├── predictions.json   # All predictions
+│   │   └── results.json       # Metrics summary
+└── comparisons/
+    └── nq_comparison.json
+```
 
 ### Agent Pattern
 

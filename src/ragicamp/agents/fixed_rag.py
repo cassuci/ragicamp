@@ -63,18 +63,22 @@ class FixedRAGAgent(RAGAgent):
         # Retrieve documents
         retrieved_docs = self.retriever.retrieve(query, top_k=self.top_k)
         
-        # Create context
-        context = RAGContext(
-            query=query,
-            retrieved_docs=retrieved_docs,
-            metadata={"top_k": self.top_k}
-        )
-        
         # Format context using utility
         context_text = ContextFormatter.format_numbered(retrieved_docs)
         
         # Build prompt using utility
         prompt = self.prompt_builder.build_prompt(query=query, context=context_text)
+        
+        # Create context with prompt included
+        context = RAGContext(
+            query=query,
+            retrieved_docs=retrieved_docs,
+            metadata={
+                "top_k": self.top_k,
+                "prompt": prompt,  # Store the actual prompt used
+                "context_text": context_text  # Store formatted context
+            }
+        )
         
         # Generate answer
         answer = self.model.generate(prompt, **kwargs)
