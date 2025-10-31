@@ -1,10 +1,14 @@
 """Fixed RAG agent - Baseline 2: Standard RAG with fixed parameters."""
 
-from typing import Any, List
+from typing import Any, List, Optional
 
 from ragicamp.agents.base import RAGAgent, RAGContext, RAGResponse
 from ragicamp.models.base import LanguageModel
-from ragicamp.retrievers.base import Retriever
+from ragicamp.retrievers.base import Document, Retriever
+from ragicamp.retrievers.dense import DenseRetriever
+from ragicamp.utils.artifacts import get_artifact_manager
+from ragicamp.utils.formatting import ContextFormatter
+from ragicamp.utils.prompts import PromptBuilder
 
 
 class FixedRAGAgent(RAGAgent):
@@ -41,8 +45,10 @@ class FixedRAGAgent(RAGAgent):
         self.model = model
         self.retriever = retriever
         self.top_k = top_k
-        self.system_prompt = system_prompt
-        self.context_template = context_template
+        self.prompt_builder = PromptBuilder(
+            system_prompt=system_prompt,
+            context_template=context_template
+        )
     
     def answer(self, query: str, **kwargs: Any) -> RAGResponse:
         """Generate an answer using fixed RAG pipeline.
@@ -64,9 +70,11 @@ class FixedRAGAgent(RAGAgent):
             metadata={"top_k": self.top_k}
         )
         
-        # Format context for LLM
-        context_text = self._format_context(retrieved_docs)
-        prompt = f"{self.system_prompt}\n\n{self.context_template.format(context=context_text, query=query)}"
+        # Format context using utility
+        context_text = ContextFormatter.format_numbered(retrieved_docs)
+        
+        # Build prompt using utility
+        prompt = self.prompt_builder.build_prompt(query=query, context=context_text)
         
         # Generate answer
         answer = self.model.generate(prompt, **kwargs)
@@ -78,22 +86,72 @@ class FixedRAGAgent(RAGAgent):
             metadata={"agent_type": "fixed_rag", "num_docs_used": len(retrieved_docs)}
         )
     
-    def _format_context(self, docs: List[dict]) -> str:
-        """Format retrieved documents into a context string.
+    def save(self, artifact_name: str, retriever_artifact_name: str) -> str:
+        """Save agent configuration.
         
         Args:
-            docs: List of retrieved documents
+            artifact_name: Name for this agent artifact (e.g., 'fixed_rag_wikipedia_v1')
+            retriever_artifact_name: Name of the retriever artifact this agent uses
             
         Returns:
-            Formatted context string
+            Path where the artifact was saved
         """
-        if not docs:
-            return "No relevant context found."
+        manager = get_artifact_manager()
+        artifact_path = manager.get_agent_path(artifact_name)
         
-        formatted = []
-        for i, doc in enumerate(docs, 1):
-            text = doc.get("text", doc.get("content", ""))
-            formatted.append(f"[{i}] {text}")
+        # Save agent config
+        config = {
+            "agent_type": "fixed_rag",
+            "name": self.name,
+            "top_k": self.top_k,
+            "retriever_artifact": retriever_artifact_name,
+            "system_prompt": self.prompt_builder.system_prompt,
+            "context_template": self.prompt_builder.context_template
+        }
+        manager.save_json(config, artifact_path / "config.json")
         
-        return "\n\n".join(formatted)
+        print(f"✓ Saved agent to: {artifact_path}")
+        return str(artifact_path)
+    
+    @classmethod
+    def load(
+        cls,
+        artifact_name: str,
+        model: LanguageModel,
+        load_retriever: bool = True
+    ) -> 'FixedRAGAgent':
+        """Load a previously saved agent.
+        
+        Args:
+            artifact_name: Name of the agent artifact to load
+            model: Language model to use (not saved, must provide)
+            load_retriever: Whether to load the associated retriever
+            
+        Returns:
+            Loaded FixedRAGAgent instance
+        """
+        manager = get_artifact_manager()
+        artifact_path = manager.get_agent_path(artifact_name)
+        
+        # Load config
+        config = manager.load_json(artifact_path / "config.json")
+        
+        # Load retriever if requested
+        retriever = None
+        if load_retriever:
+            retriever_name = config["retriever_artifact"]
+            retriever = DenseRetriever.load_index(retriever_name)
+        
+        # Create agent
+        agent = cls(
+            name=config["name"],
+            model=model,
+            retriever=retriever,
+            top_k=config["top_k"],
+            system_prompt=config["system_prompt"],
+            context_template=config["context_template"]
+        )
+        
+        print(f"✓ Loaded agent from: {artifact_path}")
+        return agent
 

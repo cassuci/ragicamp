@@ -1,0 +1,582 @@
+# RAGiCamp - Cursor AI Rules
+
+## Project Overview
+
+RAGiCamp is a modular, production-ready framework for Retrieval-Augmented Generation (RAG) experimentation. It supports multiple RAG strategies from simple baselines to complex RL-based adaptive agents.
+
+**Tech Stack:** Python 3.9+, PyTorch, HuggingFace Transformers, FAISS, Sentence Transformers
+
+**Key Goal:** Clean abstractions, reusable components, easy experimentation
+
+---
+
+## Architecture Principles
+
+### 1. Clean Abstractions (SOLID)
+
+- **Base classes** define interfaces via ABC
+- **Implementations** are fully substitutable (LSP)
+- **Single responsibility** - each component does one thing well
+- **Dependency injection** - agents receive models/retrievers, not create them
+
+### 2. Type Safety
+
+- **Always use type hints**
+- **Proper dataclasses** - Use `Document`, not `Dict[str, Any]`
+- **List[Document]** not `List[dict]` for retrieved docs
+- **Dict[str, float]** for all metric returns (standardized)
+
+### 3. Separation of Concerns
+
+```
+agents/      - Decision logic (answer questions)
+models/      - LLM interfaces (generate text)
+retrievers/  - Document retrieval (find relevant docs)
+policies/    - Action selection (for adaptive agents)
+metrics/     - Evaluation (compute scores)
+datasets/    - Data loading
+training/    - Training loops
+evaluation/  - Evaluation orchestration
+utils/       - Shared utilities
+```
+
+---
+
+## Code Patterns
+
+### Agent Pattern
+
+```python
+class MyAgent(RAGAgent):
+    def __init__(self, name: str, model: LanguageModel, **kwargs):
+        super().__init__(name, **kwargs)
+        self.model = model
+        self.prompt_builder = PromptBuilder.create_default()
+    
+    def answer(self, query: str, **kwargs: Any) -> RAGResponse:
+        # 1. Create context
+        context = RAGContext(query=query)
+        
+        # 2. Do work (retrieve, format, generate)
+        answer = self.model.generate(query)
+        
+        # 3. Return proper response
+        return RAGResponse(answer=answer, context=context)
+```
+
+### Retriever Pattern
+
+```python
+class MyRetriever(Retriever):
+    def retrieve(self, query: str, top_k: int = 5, **kwargs) -> List[Document]:
+        # Return List[Document], not List[dict]
+        return [Document(id=..., text=..., metadata={}, score=...)]
+    
+    def index_documents(self, documents: List[Document]) -> None:
+        # Build index
+        pass
+```
+
+### Metric Pattern
+
+```python
+class MyMetric(Metric):
+    def compute(
+        self, 
+        predictions: List[str], 
+        references: Union[List[str], List[List[str]]]
+    ) -> Dict[str, float]:  # Always return Dict[str, float]
+        # Compute score
+        score = ...
+        return {"my_metric": score}  # Not just `score`
+```
+
+---
+
+## DO's and DON'Ts
+
+### ✅ DO
+
+**Use utilities instead of duplicating:**
+```python
+from ragicamp.utils.formatting import ContextFormatter
+from ragicamp.utils.prompts import PromptBuilder
+
+context_text = ContextFormatter.format_numbered(docs)
+prompt = PromptBuilder.create_default().build_prompt(query, context_text)
+```
+
+**Use proper types:**
+```python
+def answer(self, query: str, **kwargs: Any) -> RAGResponse:
+    docs: List[Document] = self.retriever.retrieve(query)
+    context = RAGContext(query=query, retrieved_docs=docs)
+    return RAGResponse(answer=answer, context=context)
+```
+
+**Use dataclasses:**
+```python
+from ragicamp.retrievers.base import Document
+
+doc = Document(id="1", text="...", metadata={}, score=0.9)
+print(doc.text)  # Clean access
+```
+
+**Provide save/load for artifacts:**
+```python
+def save(self, artifact_name: str) -> str:
+    manager = get_artifact_manager()
+    path = manager.get_agent_path(artifact_name)
+    manager.save_json(config, path / "config.json")
+    return str(path)
+
+@classmethod
+def load(cls, artifact_name: str, model) -> 'MyClass':
+    manager = get_artifact_manager()
+    config = manager.load_json(...)
+    return cls(...)
+```
+
+### ❌ DON'T
+
+**Don't duplicate formatting logic:**
+```python
+# ❌ BAD - This is in utils now
+formatted = []
+for i, doc in enumerate(docs, 1):
+    formatted.append(f"[{i}] {doc.text}")
+context_text = "\n\n".join(formatted)
+
+# ✅ GOOD
+context_text = ContextFormatter.format_numbered(docs)
+```
+
+**Don't use dict for documents:**
+```python
+# ❌ BAD
+def retrieve(self, query: str) -> List[Dict[str, Any]]:
+    return [{"text": "...", "score": 0.9}]
+
+# ✅ GOOD
+def retrieve(self, query: str) -> List[Document]:
+    return [Document(id="1", text="...", metadata={}, score=0.9)]
+```
+
+**Don't return inconsistent types:**
+```python
+# ❌ BAD - Sometimes float, sometimes dict
+def compute(self, preds, refs) -> Union[float, Dict[str, float]]:
+    if self.name == "f1":
+        return 0.85
+    else:
+        return {"precision": 0.9, "recall": 0.8}
+
+# ✅ GOOD - Always dict
+def compute(self, preds, refs) -> Dict[str, float]:
+    return {"f1": 0.85}
+```
+
+**Don't check for internal methods:**
+```python
+# ❌ BAD
+if hasattr(self.agent, "update_policy"):
+    self.agent.update_policy(...)
+
+# ✅ GOOD - Define proper interface
+from abc import ABC, abstractmethod
+
+class TrainableAgent(RAGAgent):
+    @abstractmethod
+    def update_policy(self, ...):
+        pass
+```
+
+**Don't save models in artifacts:**
+```python
+# ❌ BAD - Models are huge
+artifact = {
+    "model": self.model,  # Don't save this!
+    "config": {...}
+}
+
+# ✅ GOOD - Save config, provide model at load time
+artifact = {
+    "model_name": self.model.model_name,  # Just the name
+    "config": {...}
+}
+
+@classmethod
+def load(cls, artifact_name, model: LanguageModel):  # Model provided
+    ...
+```
+
+---
+
+## File Organization
+
+### Adding New Components
+
+**New agent:**
+```
+src/ragicamp/agents/
+└── my_agent.py          # Inherit from RAGAgent
+```
+
+**New retriever:**
+```
+src/ragicamp/retrievers/
+└── my_retriever.py      # Inherit from Retriever
+```
+
+**New metric:**
+```
+src/ragicamp/metrics/
+└── my_metric.py         # Inherit from Metric
+```
+
+**New script:**
+```
+experiments/scripts/
+└── my_script.py         # Use argparse, add to Makefile
+```
+
+**New guide:**
+```
+docs/guides/
+└── my_guide.md
+```
+
+### Import Structure
+
+```python
+# Standard library
+import argparse
+import json
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+# Third party
+import numpy as np
+import torch
+from sentence_transformers import SentenceTransformer
+
+# Local - absolute imports from src/ragicamp
+from ragicamp.agents.base import RAGAgent
+from ragicamp.models.base import LanguageModel
+from ragicamp.utils.formatting import ContextFormatter
+```
+
+---
+
+## Common Tasks
+
+### Adding a New Agent
+
+1. Create `src/ragicamp/agents/my_agent.py`
+2. Inherit from `RAGAgent`
+3. Implement `answer()` method
+4. Use `PromptBuilder` and `ContextFormatter`
+5. Return `RAGResponse` with `RAGContext`
+6. Optional: Add `save()` and `load()` methods
+7. Add tests in `tests/test_agents.py`
+8. Update `docs/AGENTS.md` with example
+
+### Adding a New Metric
+
+1. Create `src/ragicamp/metrics/my_metric.py`
+2. Inherit from `Metric`
+3. Implement `compute()` returning `Dict[str, float]`
+4. Add to `__init__.py`
+5. Test with example predictions/references
+6. Update `docs/guides/METRICS_GUIDE.md`
+
+### Adding a New Retriever
+
+1. Create `src/ragicamp/retrievers/my_retriever.py`
+2. Inherit from `Retriever`
+3. Implement `retrieve()` returning `List[Document]`
+4. Implement `index_documents()`
+5. Add `save_index()` and `load_index()` class method
+6. Add to `__init__.py`
+
+### Adding Training Support
+
+1. Ensure agent has `update_policy()` or similar
+2. Create trainer that calls it with rewards
+3. Save trained policy/params with `save()`
+4. Document training process
+5. Add Makefile shortcut
+
+---
+
+## Testing Approach
+
+### Unit Tests
+
+```python
+# tests/test_agents.py
+def test_direct_llm_agent():
+    mock_model = MockLanguageModel()
+    agent = DirectLLMAgent("test", mock_model)
+    response = agent.answer("test query")
+    assert isinstance(response, RAGResponse)
+    assert response.answer is not None
+```
+
+### Integration Tests
+
+```python
+# Test full pipeline
+def test_fixed_rag_pipeline():
+    # Create all components
+    model = MockModel()
+    retriever = MockRetriever()
+    agent = FixedRAGAgent("test", model, retriever)
+    
+    # Test answer generation
+    response = agent.answer("query")
+    assert len(response.context.retrieved_docs) > 0
+```
+
+### Run Tests
+
+```bash
+make test           # Run all tests
+pytest tests/       # Direct pytest
+```
+
+---
+
+## Documentation Standards
+
+### Docstrings
+
+```python
+def answer(self, query: str, **kwargs: Any) -> RAGResponse:
+    """Generate an answer for the given query.
+    
+    Args:
+        query: The input question
+        **kwargs: Additional generation parameters (temperature, max_tokens, etc.)
+        
+    Returns:
+        RAGResponse containing the answer, context, and metadata
+        
+    Example:
+        >>> agent = DirectLLMAgent("test", model)
+        >>> response = agent.answer("What is Python?")
+        >>> print(response.answer)
+    """
+```
+
+### Comments
+
+```python
+# Good comments explain WHY, not WHAT
+# ✅ GOOD
+# Use normalized format for fair comparison across metrics
+text = normalize_answer(text)
+
+# ❌ BAD
+# Normalize the text
+text = normalize_answer(text)
+```
+
+---
+
+## Artifact Management
+
+### Structure
+
+```
+artifacts/
+├── retrievers/
+│   └── name_v1/
+│       ├── index.faiss      # FAISS index
+│       ├── documents.pkl    # Documents
+│       └── config.json      # Metadata
+└── agents/
+    └── name_v1/
+        └── config.json      # Config (references retriever)
+```
+
+### Naming Convention
+
+- Use descriptive names: `wikipedia_nq_v1`, not `index1`
+- Include version: `_v1`, `_v2`, etc.
+- Be specific: `fixed_rag_nq_v1`, not `agent1`
+
+### What to Save
+
+✅ **DO save:**
+- Configurations (JSON)
+- FAISS indices
+- Document stores (pickle)
+- Trained policies (JSON/pickle)
+- Metadata
+
+❌ **DON'T save:**
+- Language models (too large, provide at runtime)
+- Entire datasets (reference by name)
+- Temporary computations
+
+---
+
+## Performance Considerations
+
+### Indexing
+
+- Use `flat` index for < 1M documents
+- Use `ivf` index for larger datasets
+- Batch document encoding when possible
+- Show progress bars for long operations (tqdm)
+
+### Generation
+
+- Use batching when available: `model.batch_generate()`
+- Cache retrieval results if queries repeat
+- Use 8-bit quantization for memory: `load_in_8bit=True`
+
+### Memory
+
+- Don't load entire dataset if not needed
+- Use generators for large datasets
+- Clean up indices after use if RAM-constrained
+
+---
+
+## Error Handling
+
+### Graceful Failures
+
+```python
+try:
+    retriever = DenseRetriever.load_index("artifact_name")
+except FileNotFoundError:
+    print("❌ Artifact not found. Run 'make train-fixed-rag' first.")
+    sys.exit(1)
+```
+
+### User-Friendly Messages
+
+```python
+# ✅ GOOD
+print("✓ Model loaded successfully")
+print(f"  - {len(documents)} documents indexed")
+print(f"  - Artifact saved to: {path}")
+
+# ❌ BAD
+print("done")
+```
+
+---
+
+## Makefile Integration
+
+When adding new scripts, add to Makefile:
+
+```makefile
+my-command:
+	@echo "🚀 Running my command..."
+	uv run python experiments/scripts/my_script.py \
+		--arg1 value1 \
+		--arg2 value2
+```
+
+And update `make help`:
+
+```makefile
+help:
+	@echo "🆕 MY SECTION"
+	@echo "  make my-command           - Description here"
+```
+
+---
+
+## Commit Messages
+
+Use conventional commits:
+
+```
+feat: Add BanditRAGAgent with epsilon-greedy policy
+fix: Correct Document type in retriever return
+refactor: Extract formatting logic to utils
+docs: Update AGENTS.md with save/load examples
+test: Add tests for FixedRAGAgent
+chore: Update dependencies in pyproject.toml
+```
+
+---
+
+## When Helping Users
+
+1. **Check existing patterns first** - Look at similar components
+2. **Use utilities** - Don't duplicate formatting/prompt logic
+3. **Follow type system** - Use Document, not dict
+4. **Keep it simple** - Don't over-engineer
+5. **Add documentation** - Update relevant .md files
+6. **Test your changes** - At least smoke test
+7. **Update Makefile** - If adding scripts
+8. **Follow LSP** - New implementations should be substitutable
+
+---
+
+## Quick Reference
+
+```python
+# Agent
+from ragicamp.agents.fixed_rag import FixedRAGAgent
+agent = FixedRAGAgent.load("fixed_rag_v1", model)
+response = agent.answer("query")
+
+# Retriever
+from ragicamp.retrievers.dense import DenseRetriever
+retriever = DenseRetriever.load_index("wikipedia_v1")
+docs = retriever.retrieve("query", top_k=5)
+
+# Formatting
+from ragicamp.utils.formatting import ContextFormatter
+text = ContextFormatter.format_numbered(docs)
+
+# Prompts
+from ragicamp.utils.prompts import PromptBuilder
+builder = PromptBuilder.create_default()
+prompt = builder.build_prompt(query, context)
+
+# Artifacts
+from ragicamp.utils.artifacts import get_artifact_manager
+manager = get_artifact_manager()
+path = manager.get_agent_path("agent_v1")
+```
+
+---
+
+## Project Status
+
+**Current State:**
+- ✅ Clean type-safe abstractions
+- ✅ DirectLLM, FixedRAG, BanditRAG, MDPRAG agents
+- ✅ Dense & Sparse retrievers with save/load
+- ✅ EM, F1, BERTScore, BLEURT, LLM-judge metrics
+- ✅ Training infrastructure for adaptive agents
+- ✅ Artifact management system
+- ✅ Comprehensive documentation
+
+**Next Priorities:**
+- Advanced RL policies (PPO, A2C)
+- ResultStore abstraction for better viz
+- Multi-objective reward shaping
+- More comprehensive tests
+
+---
+
+## Resources
+
+- **Main docs:** `docs/README.md`
+- **Architecture:** `docs/ARCHITECTURE.md`
+- **Agent guide:** `docs/AGENTS.md`
+- **Quick start:** `docs/GETTING_STARTED.md`
+- **API patterns:** Look at existing implementations
+
+**Remember:** Keep it simple, type-safe, and reusable! 🚀
+

@@ -4,6 +4,7 @@ from typing import Any
 
 from ragicamp.agents.base import RAGAgent, RAGContext, RAGResponse
 from ragicamp.models.base import LanguageModel
+from ragicamp.utils.prompts import PromptBuilder
 
 
 class DirectLLMAgent(RAGAgent):
@@ -30,7 +31,7 @@ class DirectLLMAgent(RAGAgent):
         """
         super().__init__(name, **kwargs)
         self.model = model
-        self.system_prompt = system_prompt
+        self.prompt_builder = PromptBuilder(system_prompt=system_prompt)
     
     def answer(self, query: str, **kwargs: Any) -> RAGResponse:
         """Generate an answer by directly querying the LLM.
@@ -45,8 +46,8 @@ class DirectLLMAgent(RAGAgent):
         # Create context (no retrieval for this baseline)
         context = RAGContext(query=query)
         
-        # Format the prompt
-        prompt = f"{self.system_prompt}\n\nQuestion: {query}\n\nAnswer:"
+        # Build prompt using utility
+        prompt = self.prompt_builder.build_direct_prompt(query)
         
         # Generate answer
         answer = self.model.generate(prompt, **kwargs)

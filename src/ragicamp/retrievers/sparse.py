@@ -49,7 +49,7 @@ class SparseRetriever(Retriever):
         query: str,
         top_k: int = 5,
         **kwargs: Any
-    ) -> List[dict]:
+    ) -> List[Document]:
         """Retrieve documents using TF-IDF similarity."""
         if len(self.documents) == 0 or self.doc_vectors is None:
             return []
@@ -68,7 +68,7 @@ class SparseRetriever(Retriever):
         for idx in top_indices:
             doc = self.documents[idx]
             doc.score = float(similarities[idx])
-            results.append(doc.to_dict())
+            results.append(doc)
         
         return results
 

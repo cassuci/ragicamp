@@ -15,13 +15,15 @@ help:
 	@echo "  make setup-bleurt         - Download BLEURT checkpoint"
 	@echo "  make setup                - Full setup (install + BLEURT)"
 	@echo ""
-	@echo "🧪 DEVELOPMENT"
-	@echo "  make test                 - Run tests"
-	@echo "  make lint                 - Run linting"
-	@echo "  make format               - Format code (black + isort)"
-	@echo "  make clean                - Clean generated files"
+	@echo "🏋️  TRAINING & INDEXING"
+	@echo "  make train-fixed-rag      - Train FixedRAG (index docs + save)"
+	@echo "  make train-fixed-rag-small- Quick test (1000 docs)"
+	@echo "  make index-wikipedia      - Index Wikipedia for NQ"
+	@echo "  make index-wikipedia-small- Quick test (1000 docs)"
+	@echo "  make list-artifacts       - List saved artifacts"
+	@echo "  make clean-artifacts      - Remove all artifacts"
 	@echo ""
-	@echo "🚀 QUICK START"
+	@echo "🚀 EVALUATION (Baseline LLM)"
 	@echo "  make run-gemma2b          - Quick test (10 examples, EM + F1)"
 	@echo "  make run-gemma2b-full     - Full eval (100 examples, EM + F1)"
 	@echo ""
@@ -30,14 +32,17 @@ help:
 	@echo "  make run-bleurt           - With BLEURT (requires setup-bleurt)"
 	@echo "  make run-all-metrics      - With all metrics (EM, F1, BERT, BLEURT)"
 	@echo ""
-	@echo "⚙️  OPTIONS"
-	@echo "  make run-gemma2b-cpu      - Run on CPU"
-	@echo "  make run-gemma2b-8bit     - Run with 8-bit quantization"
+	@echo "🧪 DEVELOPMENT"
+	@echo "  make test                 - Run tests"
+	@echo "  make lint                 - Run linting"
+	@echo "  make format               - Format code (black + isort)"
+	@echo "  make clean                - Clean generated files"
 	@echo ""
 	@echo "📝 TIPS"
 	@echo "  - First time? Run: make setup"
+	@echo "  - Train RAG: make train-fixed-rag-small (quick test)"
 	@echo "  - For BLEURT: make setup-bleurt (downloads ~500MB checkpoint)"
-	@echo "  - GPU required for reasonable speed"
+	@echo "  - GPU recommended for training"
 	@echo ""
 
 # ============================================================================
@@ -216,6 +221,61 @@ run-baseline:
 compare-baselines:
 	@echo "📊 Comparing baselines..."
 	uv run python experiments/scripts/compare_baselines.py
+
+# ============================================================================
+# Training & Indexing
+# ============================================================================
+
+train-fixed-rag:
+	@echo "🏋️  Training FixedRAG agent (indexing documents)..."
+	@echo "This will:"
+	@echo "  1. Load Natural Questions dataset"
+	@echo "  2. Create document index with embeddings"
+	@echo "  3. Save retriever and agent artifacts"
+	@echo ""
+	uv run python experiments/scripts/train_fixed_rag.py \
+		--agent-name fixed_rag_nq_v1 \
+		--retriever-name wikipedia_nq_v1 \
+		--top-k 5
+
+train-fixed-rag-small:
+	@echo "🏋️  Training FixedRAG (small test version - 1000 docs)..."
+	uv run python experiments/scripts/train_fixed_rag.py \
+		--agent-name fixed_rag_nq_small \
+		--retriever-name wikipedia_nq_small \
+		--num-docs 1000 \
+		--top-k 3
+
+index-wikipedia:
+	@echo "📚 Indexing Wikipedia for Natural Questions..."
+	uv run python experiments/scripts/index_wikipedia_for_nq.py \
+		--artifact-name wikipedia_nq_v1 \
+		--embedding-model all-MiniLM-L6-v2
+
+index-wikipedia-small:
+	@echo "📚 Indexing Wikipedia (small test - 1000 docs)..."
+	uv run python experiments/scripts/index_wikipedia_for_nq.py \
+		--artifact-name wikipedia_nq_small \
+		--embedding-model all-MiniLM-L6-v2 \
+		--num-docs 1000
+
+list-artifacts:
+	@echo "📦 Saved artifacts:"
+	@echo ""
+	@if [ -d artifacts/retrievers ]; then \
+		echo "Retrievers:"; \
+		ls -1 artifacts/retrievers/ 2>/dev/null || echo "  (none)"; \
+		echo ""; \
+	fi
+	@if [ -d artifacts/agents ]; then \
+		echo "Agents:"; \
+		ls -1 artifacts/agents/ 2>/dev/null || echo "  (none)"; \
+	fi
+
+clean-artifacts:
+	@echo "🧹 Cleaning artifacts..."
+	rm -rf artifacts/
+	@echo "✓ Artifacts removed"
 
 # ============================================================================
 # Analysis

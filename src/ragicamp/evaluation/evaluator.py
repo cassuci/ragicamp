@@ -85,22 +85,19 @@ class Evaluator:
             
             # Handle metrics that need questions
             if metric.name == "llm_judge":
-                score = metric.compute(
+                scores_dict = metric.compute(
                     predictions=predictions,
                     references=references,
                     questions=questions
                 )
             else:
-                score = metric.compute(
+                scores_dict = metric.compute(
                     predictions=predictions,
                     references=references
                 )
             
-            # Store score(s)
-            if isinstance(score, dict):
-                results.update(score)
-            else:
-                results[metric.name] = score
+            # All metrics now return Dict[str, float]
+            results.update(scores_dict)
         
         # Add statistics
         results["num_examples"] = len(examples)

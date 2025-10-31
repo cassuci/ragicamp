@@ -1,71 +1,178 @@
 # RAGiCamp 🏕️
 
-A modular framework for experimenting with Retrieval-Augmented Generation (RAG) approaches, from simple baselines to complex agentic systems.
+A modular, production-ready framework for experimenting with Retrieval-Augmented Generation (RAG), from simple baselines to complex RL-based adaptive systems.
 
-## Overview
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-RAGiCamp provides a flexible, extensible architecture for:
-- **Testing multiple RAG strategies**: from direct LLM queries to sophisticated MDP-based agents
-- **Supporting diverse datasets**: NQ, HotpotQA, TriviaQA, and more
-- **Evaluating with various metrics**: BERTScore, BLEURT, LLM-as-a-judge, etc.
-- **Training and evaluating agents**: built-in support for bandit and MDP-based RAG policies
+## ✨ Features
 
-## Architecture
+- 🎯 **Clean Abstractions** - Well-defined interfaces for agents, models, retrievers, metrics
+- 🔄 **Multiple RAG Strategies** - DirectLLM, FixedRAG, BanditRAG, MDP-based agents
+- 📊 **Rich Evaluation** - EM, F1, BERTScore, BLEURT, LLM-as-a-judge
+- 🏋️ **Training Support** - Built-in training for adaptive agents with RL
+- 💾 **Artifact Management** - Save/load trained agents and indices
+- 📈 **Multiple Datasets** - Natural Questions, HotpotQA, TriviaQA
 
-The framework is built on clean abstractions that separate concerns:
-
-- **Agents**: Different RAG strategies (direct LLM, fixed RAG, bandit-based, MDP-based)
-- **Datasets**: Unified interface for QA datasets
-- **Models**: LLM interfaces (HuggingFace, OpenAI, etc.)
-- **Retrievers**: Document retrieval systems (dense, sparse, hybrid)
-- **Metrics**: Evaluation metrics for answer quality
-- **Policies**: Decision-making strategies for adaptive RAG (bandits, MDPs)
-- **Training**: Utilities for training adaptive agents
-- **Evaluation**: Comprehensive evaluation pipelines
-
-## Quick Start
+## 🚀 Quick Start
 
 ```bash
-# Install dependencies with uv
-uv sync
+# Install dependencies
+make install
 
-# Run a baseline experiment
-uv run python experiments/scripts/run_experiment.py \
-    --config experiments/configs/baseline_direct.yaml \
-    --mode eval
+# Train a FixedRAG agent (quick test - 1000 docs)
+make train-fixed-rag-small
 
-# Or run the Gemma 2B baseline
-uv run python experiments/scripts/run_gemma2b_baseline.py \
-    --dataset natural_questions \
-    --num-examples 100
+# Evaluate baseline
+make run-gemma2b
+
+# List saved artifacts
+make list-artifacts
 ```
 
-## Project Structure
+## 💡 Usage Example
+
+```python
+from ragicamp.agents.fixed_rag import FixedRAGAgent
+from ragicamp.models.huggingface import HuggingFaceModel
+
+# Load model
+model = HuggingFaceModel('google/gemma-2-2b-it')
+
+# Load pre-trained agent with retriever
+agent = FixedRAGAgent.load('fixed_rag_nq_v1', model)
+
+# Get answer
+response = agent.answer('What is the capital of France?')
+print(response.answer)
+```
+
+## 🏗️ Architecture
 
 ```
 ragicamp/
-├── src/ragicamp/          # Core framework
-│   ├── agents/            # RAG strategies
-│   ├── datasets/          # Dataset loaders
-│   ├── models/            # LLM interfaces
-│   ├── retrievers/        # Retrieval systems
-│   ├── metrics/           # Evaluation metrics
-│   ├── policies/          # Decision policies (bandit/MDP)
-│   ├── training/          # Training utilities
-│   └── evaluation/        # Evaluation utilities
-├── experiments/           # Experiment configs and scripts
-├── tests/                 # Unit tests
-└── notebooks/             # Exploration notebooks
+├── src/ragicamp/           # Core framework
+│   ├── agents/             # RAG strategies (DirectLLM, FixedRAG, BanditRAG, MDPRAG)
+│   ├── models/             # LLM interfaces (HuggingFace, OpenAI)
+│   ├── retrievers/         # Retrieval systems (Dense, Sparse)
+│   ├── datasets/           # QA datasets (NQ, HotpotQA, TriviaQA)
+│   ├── metrics/            # Evaluation metrics
+│   ├── policies/           # Decision policies (Bandits, MDP)
+│   ├── training/           # Training utilities
+│   ├── evaluation/         # Evaluation utilities
+│   └── utils/              # Formatting, prompts, artifacts
+├── experiments/            # Configs and scripts
+├── docs/                   # Documentation
+├── artifacts/              # Saved models and indices
+└── outputs/                # Evaluation results
 ```
 
-## Experiment Pipeline
+## 📚 Documentation
 
-1. **Baseline 1**: Direct LLM (no retrieval)
-2. **Baseline 2**: Fixed RAG with predefined parameters
-3. **Bandit-based RAG**: Adaptive parameter selection
-4. **MDP-based RAG**: Iterative action selection with state tracking
+- **[Getting Started](docs/GETTING_STARTED.md)** - Installation and first steps
+- **[Architecture](docs/ARCHITECTURE.md)** - System design
+- **[Usage Guide](docs/USAGE.md)** - Detailed examples
+- **[Quick Reference](docs/QUICK_REFERENCE.md)** - Command cheat sheet
+- **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues
 
-## Contributing
+See [docs/](docs/) for complete documentation.
 
-This is an experimental research framework. Feel free to add new datasets, models, metrics, or RAG strategies!
+## 🎯 Training & Inference Workflow
 
+### 1. Train (Index Documents)
+```bash
+# Index Wikipedia documents for Natural Questions
+make train-fixed-rag-small  # Quick test (1000 docs)
+# or
+make train-fixed-rag        # Full dataset
+
+# This creates:
+# - artifacts/retrievers/wikipedia_nq_v1/  (FAISS index + documents)
+# - artifacts/agents/fixed_rag_nq_v1/      (agent config)
+```
+
+### 2. Inference (Use Trained Agent)
+```python
+from ragicamp.agents.fixed_rag import FixedRAGAgent
+from ragicamp.models.huggingface import HuggingFaceModel
+
+# Load model (not saved in artifacts)
+model = HuggingFaceModel('google/gemma-2-2b-it')
+
+# Load agent (automatically loads retriever)
+agent = FixedRAGAgent.load('fixed_rag_nq_v1', model)
+
+# Answer questions
+response = agent.answer('When was Python created?')
+```
+
+### 3. Evaluate
+```python
+from ragicamp.evaluation.evaluator import Evaluator
+from ragicamp.metrics.exact_match import ExactMatchMetric, F1Metric
+
+evaluator = Evaluator(agent, dataset, [ExactMatchMetric(), F1Metric()])
+results = evaluator.evaluate(save_predictions=True)
+```
+
+## 🛠️ Available Commands
+
+```bash
+# Setup
+make install              # Install dependencies
+make setup                # Full setup with BLEURT
+
+# Training
+make train-fixed-rag      # Train FixedRAG (full)
+make train-fixed-rag-small# Quick test (1000 docs)
+make list-artifacts       # List saved artifacts
+
+# Evaluation
+make run-gemma2b          # Quick test (10 examples)
+make run-gemma2b-full     # Full eval (100 examples)
+make run-bertscore        # With BERTScore
+make run-all-metrics      # All metrics
+
+# Development
+make test                 # Run tests
+make lint                 # Lint code
+make format               # Format code
+make clean                # Clean generated files
+```
+
+## 🔬 Supported Agents
+
+| Agent | Description | Training | Use Case |
+|-------|-------------|----------|----------|
+| **DirectLLM** | No retrieval, direct LLM | ❌ No | Baseline comparison |
+| **FixedRAG** | Standard RAG, fixed params | ✅ Index docs | Production RAG |
+| **BanditRAG** | Adaptive param selection | ✅ RL training | Optimize retrieval |
+| **MDPRAG** | Sequential decision making | ✅ RL training | Complex reasoning |
+
+## 📊 Supported Metrics
+
+- **Exact Match** - Normalized exact matching
+- **F1 Score** - Token-level F1
+- **BERTScore** - Semantic similarity
+- **BLEURT** - Learned evaluation metric
+- **LLM-as-a-Judge** - LLM-based evaluation
+
+## 🤝 Contributing
+
+Contributions welcome! This is a research framework designed for experimentation.
+
+## 📄 License
+
+MIT License - see LICENSE file for details
+
+## 🙏 Acknowledgments
+
+Built with:
+- [HuggingFace Transformers](https://huggingface.co/transformers)
+- [FAISS](https://github.com/facebookresearch/faiss)
+- [Sentence Transformers](https://www.sbert.net/)
+- [BERTScore](https://github.com/Tiiiger/bert_score)
+
+---
+
+**Ready to start?** Run `make help` to see all available commands!

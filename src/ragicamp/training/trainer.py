@@ -112,15 +112,18 @@ class Trainer:
         metric = self.metrics[self.reward_metric]
         result = metric.compute_single(prediction, references)
         
-        # Handle dict results (e.g., from BERTScore)
-        if isinstance(result, dict):
-            # Use F1 if available
-            for key in ["f1", "bertscore_f1", "score"]:
-                if key in result:
-                    return result[key]
-            return list(result.values())[0]
+        # All metrics now return Dict[str, float]
+        # Try to find the reward metric score, fallback to first value
+        if self.reward_metric in result:
+            return result[self.reward_metric]
         
-        return result
+        # Try common keys
+        for key in ["f1", "exact_match", "bertscore_f1", "llm_judge_score"]:
+            if key in result:
+                return result[key]
+        
+        # Fallback to first value
+        return list(result.values())[0]
     
     def _update_agent(self, response: Any, reward: float) -> None:
         """Update agent based on response and reward.

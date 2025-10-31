@@ -1,11 +1,13 @@
 """Bandit-based RAG agent - Adaptive parameter selection using bandit algorithms."""
 
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from ragicamp.agents.base import RAGAgent, RAGContext, RAGResponse
 from ragicamp.models.base import LanguageModel
 from ragicamp.policies.base import Policy
-from ragicamp.retrievers.base import Retriever
+from ragicamp.retrievers.base import Document, Retriever
+from ragicamp.utils.formatting import ContextFormatter
+from ragicamp.utils.prompts import PromptBuilder
 
 
 class BanditRAGAgent(RAGAgent):
@@ -43,7 +45,7 @@ class BanditRAGAgent(RAGAgent):
         self.model = model
         self.retriever = retriever
         self.policy = policy
-        self.system_prompt = system_prompt
+        self.prompt_builder = PromptBuilder(system_prompt=system_prompt)
     
     def answer(self, query: str, **kwargs: Any) -> RAGResponse:
         """Generate an answer using bandit-selected parameters.
@@ -69,9 +71,11 @@ class BanditRAGAgent(RAGAgent):
             metadata={"selected_params": rag_params}
         )
         
-        # Format and generate
-        context_text = self._format_context(retrieved_docs, rag_params)
-        prompt = self._build_prompt(query, context_text)
+        # Format context using utility
+        context_text = ContextFormatter.format_numbered(retrieved_docs)
+        
+        # Build prompt using utility
+        prompt = self.prompt_builder.build_prompt(query=query, context=context_text)
         answer = self.model.generate(prompt, **kwargs)
         
         # Return response with selected parameters
@@ -94,20 +98,4 @@ class BanditRAGAgent(RAGAgent):
             reward: The reward/score achieved
         """
         self.policy.update(query=query, action=params, reward=reward)
-    
-    def _build_prompt(self, query: str, context_text: str) -> str:
-        """Build the prompt for the LLM."""
-        return f"{self.system_prompt}\n\nContext:\n{context_text}\n\nQuestion: {query}\n\nAnswer:"
-    
-    def _format_context(self, docs: list, params: Dict[str, Any]) -> str:
-        """Format documents based on selected parameters."""
-        if not docs:
-            return "No relevant context found."
-        
-        formatted = []
-        for i, doc in enumerate(docs, 1):
-            text = doc.get("text", doc.get("content", ""))
-            formatted.append(f"[{i}] {text}")
-        
-        return "\n\n".join(formatted)
 

@@ -108,8 +108,12 @@ class ExactMatchMetric(Metric):
         predictions: List[str],
         references: Union[List[str], List[List[str]]],
         **kwargs: Any
-    ) -> float:
-        """Compute exact match score."""
+    ) -> Dict[str, float]:
+        """Compute exact match score.
+        
+        Returns:
+            Dict with exact_match score
+        """
         scores = []
         
         for pred, ref in zip(predictions, references):
@@ -127,7 +131,8 @@ class ExactMatchMetric(Metric):
             score = 1.0 if any(pred_norm == r for r in refs_norm) else 0.0
             scores.append(score)
         
-        return sum(scores) / len(scores) if scores else 0.0
+        avg_score = sum(scores) / len(scores) if scores else 0.0
+        return {"exact_match": avg_score}
 
 
 class F1Metric(Metric):
@@ -175,8 +180,12 @@ class F1Metric(Metric):
         predictions: List[str],
         references: Union[List[str], List[List[str]]],
         **kwargs: Any
-    ) -> float:
-        """Compute F1 score."""
+    ) -> Dict[str, float]:
+        """Compute F1 score.
+        
+        Returns:
+            Dict with f1 score
+        """
         scores = []
         
         for pred, ref in zip(predictions, references):
@@ -186,7 +195,8 @@ class F1Metric(Metric):
             f1_scores = [self._compute_f1(pred, r) for r in refs]
             scores.append(max(f1_scores))
         
-        return sum(scores) / len(scores) if scores else 0.0
+        avg_score = sum(scores) / len(scores) if scores else 0.0
+        return {"f1": avg_score}
     
     def _compute_f1(self, prediction: str, reference: str) -> float:
         """Compute F1 between prediction and single reference.

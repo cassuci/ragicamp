@@ -27,7 +27,7 @@ class Metric(ABC):
         predictions: List[str],
         references: Union[List[str], List[List[str]]],
         **kwargs: Any
-    ) -> Union[float, Dict[str, float]]:
+    ) -> Dict[str, float]:
         """Compute the metric.
         
         Args:
@@ -36,7 +36,8 @@ class Metric(ABC):
             **kwargs: Additional computation parameters
             
         Returns:
-            Metric score (float) or dict of scores
+            Dict of metric scores (e.g., {"exact_match": 0.85, "f1": 0.92})
+            All metrics should return a dictionary for consistency
         """
         pass
     
@@ -45,7 +46,7 @@ class Metric(ABC):
         prediction: str,
         reference: Union[str, List[str]],
         **kwargs: Any
-    ) -> Union[float, Dict[str, float]]:
+    ) -> Dict[str, float]:
         """Compute metric for a single prediction-reference pair.
         
         Args:
@@ -54,7 +55,7 @@ class Metric(ABC):
             **kwargs: Additional parameters
             
         Returns:
-            Metric score
+            Dict of metric scores
         """
         predictions = [prediction]
         references = [reference] if isinstance(reference, str) else [reference]

@@ -1,5 +1,7 @@
 """Dense retriever using vector similarity."""
 
+import pickle
+from pathlib import Path
 from typing import Any, List, Optional
 
 import faiss
@@ -7,6 +9,7 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 
 from ragicamp.retrievers.base import Document, Retriever
+from ragicamp.utils.artifacts import get_artifact_manager
 
 
 class DenseRetriever(Retriever):
@@ -70,7 +73,7 @@ class DenseRetriever(Retriever):
         query: str,
         top_k: int = 5,
         **kwargs: Any
-    ) -> List[dict]:
+    ) -> List[Document]:
         """Retrieve documents using dense similarity search."""
         if len(self.documents) == 0:
             return []
@@ -88,7 +91,79 @@ class DenseRetriever(Retriever):
             if idx < len(self.documents):
                 doc = self.documents[idx]
                 doc.score = float(score)
-                results.append(doc.to_dict())
+                results.append(doc)
         
         return results
+    
+    def save_index(self, artifact_name: str) -> str:
+        """Save the indexed documents and FAISS index.
+        
+        Args:
+            artifact_name: Name for this retriever artifact (e.g., 'wikipedia_nq_v1')
+            
+        Returns:
+            Path where the artifact was saved
+        """
+        manager = get_artifact_manager()
+        artifact_path = manager.get_retriever_path(artifact_name)
+        
+        # Save FAISS index
+        faiss.write_index(self.index, str(artifact_path / "index.faiss"))
+        
+        # Save documents
+        with open(artifact_path / "documents.pkl", 'wb') as f:
+            pickle.dump(self.documents, f)
+        
+        # Save config
+        config = {
+            "name": self.name,
+            "embedding_model": self.encoder.model_name if hasattr(self.encoder, 'model_name') else "unknown",
+            "index_type": self.index_type,
+            "num_documents": len(self.documents),
+            "embedding_dim": self.embedding_dim
+        }
+        manager.save_json(config, artifact_path / "config.json")
+        
+        print(f"✓ Saved retriever to: {artifact_path}")
+        return str(artifact_path)
+    
+    @classmethod
+    def load_index(cls, artifact_name: str, embedding_model: Optional[str] = None) -> 'DenseRetriever':
+        """Load a previously saved retriever index.
+        
+        Args:
+            artifact_name: Name of the retriever artifact to load
+            embedding_model: Optional override for embedding model
+            
+        Returns:
+            Loaded DenseRetriever instance
+        """
+        manager = get_artifact_manager()
+        artifact_path = manager.get_retriever_path(artifact_name)
+        
+        # Load config
+        config = manager.load_json(artifact_path / "config.json")
+        
+        # Use config embedding model if not overridden
+        if embedding_model is None:
+            embedding_model = config.get("embedding_model", "all-MiniLM-L6-v2")
+        
+        # Create retriever
+        retriever = cls(
+            name=config["name"],
+            embedding_model=embedding_model,
+            index_type=config["index_type"]
+        )
+        
+        # Load FAISS index
+        retriever.index = faiss.read_index(str(artifact_path / "index.faiss"))
+        
+        # Load documents
+        with open(artifact_path / "documents.pkl", 'rb') as f:
+            retriever.documents = pickle.load(f)
+        
+        print(f"✓ Loaded retriever from: {artifact_path}")
+        print(f"  - {len(retriever.documents)} documents indexed")
+        
+        return retriever
 

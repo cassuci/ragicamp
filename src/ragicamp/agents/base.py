@@ -2,7 +2,10 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ragicamp.retrievers.base import Document
 
 
 @dataclass
@@ -16,7 +19,7 @@ class RAGContext:
         metadata: Additional context information
     """
     query: str
-    retrieved_docs: List[Dict[str, Any]] = field(default_factory=list)
+    retrieved_docs: List['Document'] = field(default_factory=list)
     intermediate_steps: List[Dict[str, Any]] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
 

@@ -5,7 +5,9 @@ from typing import Any, Dict, List
 from ragicamp.agents.base import RAGAgent, RAGContext, RAGResponse
 from ragicamp.models.base import LanguageModel
 from ragicamp.policies.base import Policy
-from ragicamp.retrievers.base import Retriever
+from ragicamp.retrievers.base import Document, Retriever
+from ragicamp.utils.formatting import ContextFormatter
+from ragicamp.utils.prompts import PromptBuilder
 
 
 class MDPRAGAgent(RAGAgent):
@@ -46,7 +48,7 @@ class MDPRAGAgent(RAGAgent):
         self.retriever = retriever
         self.policy = policy
         self.max_steps = max_steps
-        self.system_prompt = system_prompt
+        self.prompt_builder = PromptBuilder(system_prompt=system_prompt)
     
     def answer(self, query: str, **kwargs: Any) -> RAGResponse:
         """Generate an answer using iterative MDP-based approach.
@@ -151,7 +153,7 @@ class MDPRAGAgent(RAGAgent):
         
         return new_state
     
-    def _execute_retrieve(self, query: str, action: Dict[str, Any], context: RAGContext) -> List[dict]:
+    def _execute_retrieve(self, query: str, action: Dict[str, Any], context: RAGContext) -> List[Document]:
         """Execute a retrieval action."""
         params = action.get("params", {})
         top_k = params.get("top_k", 5)
@@ -168,20 +170,10 @@ class MDPRAGAgent(RAGAgent):
     
     def _execute_generate(self, query: str, context: RAGContext, state: Dict[str, Any], **kwargs: Any) -> str:
         """Execute answer generation action."""
-        # Format all retrieved documents
-        context_text = self._format_context(context.retrieved_docs)
-        prompt = f"{self.system_prompt}\n\nContext:\n{context_text}\n\nQuestion: {query}\n\nAnswer:"
+        # Format all retrieved documents using utility
+        context_text = ContextFormatter.format_numbered(context.retrieved_docs)
+        
+        # Build prompt using utility
+        prompt = self.prompt_builder.build_prompt(query=query, context=context_text)
         return self.model.generate(prompt, **kwargs)
-    
-    def _format_context(self, docs: List[dict]) -> str:
-        """Format documents into context string."""
-        if not docs:
-            return "No relevant context found."
-        
-        formatted = []
-        for i, doc in enumerate(docs, 1):
-            text = doc.get("text", doc.get("content", ""))
-            formatted.append(f"[{i}] {text}")
-        
-        return "\n\n".join(formatted)
 

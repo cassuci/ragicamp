@@ -71,3 +71,6 @@ outputs/
 results/
 cache/
 
+# Artifacts (trained models, indices, saved agents)
+artifacts/
+

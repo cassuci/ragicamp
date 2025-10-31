@@ -55,7 +55,7 @@ class Retriever(ABC):
         query: str,
         top_k: int = 5,
         **kwargs: Any
-    ) -> List[Dict[str, Any]]:
+    ) -> List[Document]:
         """Retrieve relevant documents for a query.
         
         Args:
@@ -64,7 +64,7 @@ class Retriever(ABC):
             **kwargs: Additional retrieval parameters
             
         Returns:
-            List of retrieved documents (as dicts for compatibility)
+            List of retrieved Document objects
         """
         pass
     
