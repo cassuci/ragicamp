@@ -1,0 +1,28 @@
+# Natural Questions - Baseline (DirectLLM) with Gemma 2B
+# Quick test: 10 examples with fast metrics only
+
+agent:
+  type: direct_llm
+  name: "gemma_2b_baseline_quick"
+  system_prompt: "You are a helpful AI assistant. Answer questions accurately and concisely based on your knowledge."
+
+model:
+  type: huggingface
+  model_name: "google/gemma-2-2b-it"
+  device: "cuda"
+  load_in_8bit: true
+
+dataset:
+  name: natural_questions
+  split: validation
+  num_examples: 10
+  filter_no_answer: true
+
+metrics:
+  - exact_match
+  - f1
+
+output:
+  save_predictions: true
+  output_path: "outputs/nq_baseline_gemma2b_quick.json"
+

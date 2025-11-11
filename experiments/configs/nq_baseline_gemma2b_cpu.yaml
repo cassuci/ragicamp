@@ -1,0 +1,39 @@
+# Natural Questions - Baseline (DirectLLM) with Gemma 2B - CPU Version
+# Quick test on CPU: 10 examples with fast metrics only
+
+agent:
+  type: direct_llm
+  name: "gemma_2b_baseline_cpu"
+  system_prompt: "You are a helpful AI assistant. Answer questions accurately and concisely based on your knowledge."
+
+model:
+  type: huggingface
+  model_name: "google/gemma-2-2b-it"
+  device: "cpu"
+  load_in_8bit: false  # 8-bit quantization not supported on CPU
+
+dataset:
+  name: natural_questions
+  split: validation
+  num_examples: 10  # Keep small for CPU (slower)
+  filter_no_answer: true
+
+# LLM Judge Model Configuration (Budget version)
+judge_model:
+  type: openai
+  model_name: "gpt-4o-mini"  # Much cheaper than gpt-4o
+  temperature: 0.0
+
+metrics:
+  - exact_match
+  - f1
+  - bertscore
+  - bleurt
+  - name: llm_judge_qa
+    params:
+      judgment_type: "binary"  # binary: correct/incorrect
+
+output:
+  save_predictions: true
+  output_path: "outputs/nq_baseline_gemma2b_cpu.json"
+

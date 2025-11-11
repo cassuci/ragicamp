@@ -20,7 +20,27 @@ from ragicamp.datasets.nq import NaturalQuestionsDataset
 from ragicamp.datasets.triviaqa import TriviaQADataset
 from ragicamp.evaluation.evaluator import Evaluator
 from ragicamp.metrics.exact_match import ExactMatchMetric, F1Metric
+
+# Optional metrics
+try:
+    from ragicamp.metrics.bertscore import BERTScoreMetric
+    BERTSCORE_AVAILABLE = True
+except ImportError:
+    BERTSCORE_AVAILABLE = False
+
+try:
+    from ragicamp.metrics.bleurt import BLEURTMetric
+    BLEURT_AVAILABLE = True
+except ImportError:
+    BLEURT_AVAILABLE = False
+
+try:
+    from ragicamp.metrics.llm_judge_qa import LLMJudgeQAMetric
+    LLM_JUDGE_AVAILABLE = True
+except ImportError:
+    LLM_JUDGE_AVAILABLE = False
 from ragicamp.models.huggingface import HuggingFaceModel
+from ragicamp.models.openai import OpenAIModel
 from ragicamp.policies.bandits import EpsilonGreedyBandit, UCBBandit
 from ragicamp.policies.mdp import QLearningMDPPolicy, RandomMDPPolicy
 from ragicamp.retrievers.dense import DenseRetriever
@@ -41,7 +61,9 @@ def create_model(config: dict):
     if model_type == "huggingface":
         return HuggingFaceModel(
             model_name=config["model_name"],
-            device=config.get("device", "cpu")
+            device=config.get("device", "cpu"),
+            load_in_8bit=config.get("load_in_8bit", False),
+            load_in_4bit=config.get("load_in_4bit", False)
         )
     else:
         raise ValueError(f"Unknown model type: {model_type}")
@@ -152,6 +174,13 @@ def create_dataset(config: dict):
     else:
         raise ValueError(f"Unknown dataset: {dataset_name}")
     
+    # Filter questions without answers if specified
+    if config.get("filter_no_answer", False):
+        print("Filtering questions without explicit answers...")
+        original_size = len(dataset)
+        dataset.filter_with_answers()
+        print(f"Filtered: {original_size} → {len(dataset)} examples")
+    
     # Limit number of examples if specified
     num_examples = config.get("num_examples")
     if num_examples and num_examples < len(dataset):
@@ -160,16 +189,83 @@ def create_dataset(config: dict):
     return dataset
 
 
-def create_metrics(config: list):
-    """Create metrics from configuration."""
-    metrics = []
+def create_metrics(config: list, judge_model_config: dict = None):
+    """Create metrics from configuration.
     
-    for metric_name in config:
+    Args:
+        config: List of metric names or dicts with metric config
+        judge_model_config: Optional config for LLM judge model
+        
+    Returns:
+        List of metric instances
+    """
+    metrics = []
+    judge_model = None
+    
+    # Create judge model if needed and configured
+    if judge_model_config:
+        print("Creating LLM judge model...")
+        model_type = judge_model_config.get("type", "openai")
+        if model_type == "openai":
+            import os
+            if not os.getenv("OPENAI_API_KEY"):
+                print("⚠️  OPENAI_API_KEY not set. LLM judge metrics will be skipped.")
+                print("   Set it with: export OPENAI_API_KEY='your-key'")
+            else:
+                try:
+                    judge_model = OpenAIModel(
+                        model_name=judge_model_config.get("model_name", "gpt-4o"),
+                        temperature=judge_model_config.get("temperature", 0.0)
+                    )
+                    print(f"✓ Created judge model: {judge_model_config.get('model_name', 'gpt-4o')}")
+                except Exception as e:
+                    print(f"⚠️  Failed to create judge model: {e}")
+    
+    for metric_config in config:
+        # Handle simple string or dict format
+        if isinstance(metric_config, str):
+            metric_name = metric_config
+            metric_params = {}
+        else:
+            metric_name = metric_config.get("name")
+            metric_params = metric_config.get("params", {})
+        
+        # Create metric
         if metric_name == "exact_match":
-            metrics.append(ExactMatchMetric())
+            metrics.append(ExactMatchMetric(**metric_params))
         elif metric_name == "f1":
-            metrics.append(F1Metric())
-        # Add more metrics as needed
+            metrics.append(F1Metric(**metric_params))
+        elif metric_name == "bertscore":
+            if not BERTSCORE_AVAILABLE:
+                print(f"⚠️  Skipping BERTScore (not installed). Install with: uv sync")
+                continue
+            model_type = metric_params.get("model_type", "microsoft/deberta-base-mnli")
+            metrics.append(BERTScoreMetric(model_type=model_type))
+        elif metric_name == "bleurt":
+            if not BLEURT_AVAILABLE:
+                print(f"⚠️  Skipping BLEURT (not installed). Install with: uv sync")
+                continue
+            checkpoint = metric_params.get("checkpoint", "BLEURT-20-D3")
+            metrics.append(BLEURTMetric(checkpoint=checkpoint))
+        elif metric_name == "llm_judge_qa":
+            if not LLM_JUDGE_AVAILABLE:
+                print(f"⚠️  Skipping LLM Judge (not available)")
+                continue
+            if not judge_model:
+                print(f"⚠️  Skipping LLM Judge (judge_model not configured or API key not set)")
+                continue
+            judgment_type = metric_params.get("judgment_type", "binary")
+            metrics.append(LLMJudgeQAMetric(
+                judge_model=judge_model,
+                judgment_type=judgment_type
+            ))
+            print(f"✓ Added LLM Judge ({judgment_type} mode)")
+        else:
+            print(f"⚠️  Unknown metric: {metric_name}, skipping")
+    
+    if not metrics:
+        print("⚠️  No valid metrics configured, using defaults: exact_match, f1")
+        metrics = [ExactMatchMetric(), F1Metric()]
     
     return metrics
 
@@ -220,7 +316,8 @@ def main():
     print(f"Dataset size: {len(dataset)}")
     
     print("Creating metrics...")
-    metrics = create_metrics(config["metrics"])
+    judge_model_config = config.get("judge_model")
+    metrics = create_metrics(config["metrics"], judge_model_config)
     
     # Run experiment
     if args.mode == "train":

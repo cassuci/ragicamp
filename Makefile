@@ -8,12 +8,11 @@ help:
 	@echo "╚══════════════════════════════════════════════════════════════╝"
 	@echo ""
 	@echo "📦 SETUP & INSTALLATION"
-	@echo "  make install              - Install base dependencies"
+	@echo "  make install              - Install dependencies (includes BERTScore, BLEURT)"
 	@echo "  make install-dev          - Install with dev tools"
-	@echo "  make install-metrics      - Install with metric dependencies"
-	@echo "  make install-all          - Install everything"
-	@echo "  make setup-bleurt         - Download BLEURT checkpoint"
-	@echo "  make setup                - Full setup (install + BLEURT)"
+	@echo "  make install-all          - Install everything (dev + viz)"
+	@echo "  make setup                - Full setup (install + verify)"
+	@echo "  make verify-install       - Verify all dependencies are working"
 	@echo ""
 	@echo "🏋️  INDEXING & CORPUS"
 	@echo "  make index-corpus         - Index corpus (new architecture)"
@@ -27,19 +26,20 @@ help:
 	@echo "  make list-experiments     - List all experiments"
 	@echo "  make compare-experiments  - Compare experiment results"
 	@echo ""
-	@echo "🚀 EVALUATION (Baseline LLM)"
-	@echo "  make run-gemma2b          - Quick test (10 examples, EM + F1)"
-	@echo "  make run-gemma2b-full     - Full eval (100 examples, EM + F1)"
+	@echo "🚀 EVALUATION (Config-Based)"
+	@echo "  make eval-baseline-quick  - Quick test (10 examples, GPU)"
+	@echo "  make eval-baseline-full   - Full eval (100 examples, GPU, all metrics)"
+	@echo "  make eval-baseline-cpu    - CPU evaluation (10 examples, slower)"
+	@echo "  make eval-rag             - RAG evaluation (requires indexed corpus)"
 	@echo ""
-	@echo "🔍 EVALUATION (FixedRAG with Retrieval)"
-	@echo "  make run-fixed-rag        - Quick test (10 examples)"
-	@echo "  make run-fixed-rag-full   - Full eval (100 examples)"
-	@echo "  make run-fixed-rag-bertscore - With BERTScore"
+	@echo "🤖 EVALUATION WITH LLM JUDGE (Requires OPENAI_API_KEY)"
+	@echo "  make eval-with-llm-judge       - Binary judge (correct/incorrect)"
+	@echo "  make eval-with-llm-judge-mini  - Budget version (GPT-4o-mini)"
+	@echo "  make eval-with-llm-judge-ternary - Ternary judge (correct/partial/incorrect)"
 	@echo ""
-	@echo "📊 ADVANCED METRICS (Baseline)"
-	@echo "  make run-bertscore        - With BERTScore"
-	@echo "  make run-bleurt           - With BLEURT (requires setup-bleurt)"
-	@echo "  make run-all-metrics      - With all metrics (EM, F1, BERT, BLEURT)"
+	@echo "📊 LEGACY EVALUATION (Direct Scripts)"
+	@echo "  make run-gemma2b          - Legacy: Direct script baseline"
+	@echo "  make run-fixed-rag        - Legacy: Direct script RAG"
 	@echo ""
 	@echo "🧪 DEVELOPMENT"
 	@echo "  make test                 - Run tests"
@@ -49,9 +49,10 @@ help:
 	@echo ""
 	@echo "📝 TIPS"
 	@echo "  - First time? Run: make setup"
-	@echo "  - Train RAG: make train-fixed-rag-small (quick test)"
-	@echo "  - For BLEURT: make setup-bleurt (downloads ~500MB checkpoint)"
-	@echo "  - GPU recommended for training"
+	@echo "  - Quick start GPU: make eval-baseline-quick"
+	@echo "  - No GPU? Use: make eval-baseline-cpu (slower but works)"
+	@echo "  - Compare approaches: Edit config files in experiments/configs/"
+	@echo "  - GPU recommended for speed (CPU takes 10-30x longer)"
 	@echo ""
 
 # ============================================================================
@@ -67,8 +68,8 @@ install-dev:
 	uv sync --extra dev
 
 install-metrics:
-	@echo "📦 Installing with metrics (BERTScore, BLEURT)..."
-	uv sync --extra metrics
+	@echo "📦 Installing dependencies (includes BERTScore, BLEURT)..."
+	uv sync
 
 install-viz:
 	@echo "📦 Installing with visualization tools..."
@@ -76,22 +77,25 @@ install-viz:
 
 install-all:
 	@echo "📦 Installing all dependencies..."
-	uv sync --extra dev --extra metrics --extra viz
+	uv sync --extra dev --extra viz
 
-setup-bleurt:
-	@echo "📥 Downloading BLEURT checkpoint..."
-	@echo "This will download ~500MB. Please wait..."
-	@mkdir -p ~/.cache/bleurt
-	@uv run python -c "from bleurt import score; scorer = score.BleurtScorer('BLEURT-20')" || \
-		(echo "⚠️  BLEURT checkpoint download failed. This is normal if you haven't installed metrics." && \
-		 echo "Run: make install-metrics && make setup-bleurt")
-	@echo "✅ BLEURT checkpoint ready!"
+verify-install:
+	@echo "🔍 Verifying installation..."
+	@uv run python -c "import torch; print('✓ PyTorch:', torch.__version__)"
+	@uv run python -c "import transformers; print('✓ Transformers:', transformers.__version__)"
+	@uv run python -c "from bert_score import BERTScorer; print('✓ BERTScore: OK')"
+	@uv run python -c "import bleurt; print('✓ BLEURT: OK (checkpoint will auto-download on first use)')"
+	@echo ""
+	@echo "✅ All dependencies installed correctly!"
 
-setup: install-metrics setup-bleurt
+setup: install verify-install
 	@echo ""
 	@echo "✅ Setup complete! You can now run:"
-	@echo "   make run-gemma2b          - Quick test"
-	@echo "   make run-all-metrics      - Full evaluation with all metrics"
+	@echo "   make eval-baseline-quick  - Quick test (10 examples)"
+	@echo "   make eval-baseline-full   - Full evaluation (100 examples, all metrics)"
+	@echo ""
+	@echo "📝 Note: BLEURT checkpoint (~500MB) will auto-download on first evaluation"
+	@echo "📖 See CONFIG_BASED_EVALUATION.md for detailed usage"
 	@echo ""
 
 # ============================================================================
@@ -133,50 +137,122 @@ clean-all: clean clean-outputs
 	@echo "✅ Everything cleaned!"
 
 # ============================================================================
-# Evaluation - Quick Start
+# Config-Based Evaluation (RECOMMENDED)
+# ============================================================================
+
+eval-baseline-quick:
+	@echo "🚀 Running baseline evaluation (quick test)"
+	@echo "📋 Config: experiments/configs/nq_baseline_gemma2b_quick.yaml"
+	@echo "⏱️  ~2-3 minutes on GPU"
+	@echo ""
+	uv run python experiments/scripts/run_experiment.py \
+		--config experiments/configs/nq_baseline_gemma2b_quick.yaml \
+		--mode eval
+
+eval-baseline-cpu:
+	@echo "🚀 Running baseline evaluation on CPU"
+	@echo "📋 Config: experiments/configs/nq_baseline_gemma2b_cpu.yaml"
+	@echo "⚠️  CPU is SLOW: ~30-60 minutes for 10 examples"
+	@echo "⏳  Loading model... (this may take a few minutes)"
+	@echo ""
+	uv run python experiments/scripts/run_experiment.py \
+		--config experiments/configs/nq_baseline_gemma2b_cpu.yaml \
+		--mode eval
+
+eval-baseline-full:
+	@echo "🚀 Running baseline evaluation (full - 100 examples, all metrics)"
+	@echo "📋 Config: experiments/configs/nq_baseline_gemma2b_full.yaml"
+	@echo "⏱️  ~20-25 minutes on GPU"
+	@echo ""
+	uv run python experiments/scripts/run_experiment.py \
+		--config experiments/configs/nq_baseline_gemma2b_full.yaml \
+		--mode eval
+
+eval-baseline-all-metrics:
+	@echo "🚀 Running baseline evaluation (100 examples, best quality metrics)"
+	@echo "📋 Config: experiments/configs/nq_baseline_gemma2b_all_metrics.yaml"
+	@echo "⏱️  ~30-40 minutes on GPU"
+	@echo ""
+	uv run python experiments/scripts/run_experiment.py \
+		--config experiments/configs/nq_baseline_gemma2b_all_metrics.yaml \
+		--mode eval
+
+eval-rag:
+	@echo "🔍 Running FixedRAG evaluation"
+	@echo "📋 Config: experiments/configs/nq_fixed_rag_gemma2b.yaml"
+	@if [ ! -d artifacts/retrievers/wikipedia_small ]; then \
+		echo "⚠️  Wikipedia index not found. Indexing first..."; \
+		$(MAKE) index-wiki-small; \
+	fi
+	uv run python experiments/scripts/run_experiment.py \
+		--config experiments/configs/nq_fixed_rag_gemma2b.yaml \
+		--mode eval
+
+# ============================================================================
+# Evaluation with LLM Judge (Requires OPENAI_API_KEY)
+# ============================================================================
+
+eval-with-llm-judge:
+	@echo "🤖 Running evaluation with LLM Judge (Binary)"
+	@echo "📋 Config: experiments/configs/nq_baseline_with_llm_judge.yaml"
+	@echo "💰 Cost: ~$0.50-1.00 for 20 examples (GPT-4o)"
+	@echo ""
+	@if [ -z "$$OPENAI_API_KEY" ]; then \
+		echo "⚠️  OPENAI_API_KEY not set!"; \
+		echo "Set it with: export OPENAI_API_KEY='your-key-here'"; \
+		exit 1; \
+	fi
+	uv run python experiments/scripts/run_experiment.py \
+		--config experiments/configs/nq_baseline_with_llm_judge.yaml \
+		--mode eval
+
+eval-with-llm-judge-mini:
+	@echo "🤖 Running evaluation with LLM Judge (Budget - GPT-4o-mini)"
+	@echo "📋 Config: experiments/configs/nq_baseline_with_llm_judge_mini.yaml"
+	@echo "💰 Cost: ~$0.05-0.10 for 50 examples (10x cheaper)"
+	@echo ""
+	@if [ -z "$$OPENAI_API_KEY" ]; then \
+		echo "⚠️  OPENAI_API_KEY not set!"; \
+		echo "Set it with: export OPENAI_API_KEY='your-key-here'"; \
+		exit 1; \
+	fi
+	uv run python experiments/scripts/run_experiment.py \
+		--config experiments/configs/nq_baseline_with_llm_judge_mini.yaml \
+		--mode eval
+
+eval-with-llm-judge-ternary:
+	@echo "🤖 Running evaluation with LLM Judge (Ternary)"
+	@echo "📋 Config: experiments/configs/nq_baseline_with_llm_judge_ternary.yaml"
+	@echo "💰 Cost: ~$0.50-1.00 for 20 examples"
+	@echo "📊 Classification: correct / partially_correct / incorrect"
+	@echo ""
+	@if [ -z "$$OPENAI_API_KEY" ]; then \
+		echo "⚠️  OPENAI_API_KEY not set!"; \
+		echo "Set it with: export OPENAI_API_KEY='your-key-here'"; \
+		exit 1; \
+	fi
+	uv run python experiments/scripts/run_experiment.py \
+		--config experiments/configs/nq_baseline_with_llm_judge_ternary.yaml \
+		--mode eval
+
+# ============================================================================
+# Legacy Direct Scripts (kept for backward compatibility)
 # ============================================================================
 
 run-gemma2b:
-	@echo "🚀 Running Gemma 2B baseline (10 examples, EM + F1)..."
-	@echo "⏱️  This should take ~2-3 minutes on GPU"
+	@echo "🚀 Running Gemma 2B baseline (legacy script)"
+	@echo "⚠️  Consider using: make eval-baseline-quick (config-based)"
+	@echo ""
 	uv run python experiments/scripts/run_gemma2b_baseline.py \
 		--dataset natural_questions \
 		--num-examples 10 \
 		--device cuda \
 		--filter-no-answer \
-		--metrics exact_match f1
-
-# ============================================================================
-# Evaluation - Options
-# ============================================================================
-
-run-gemma2b-cpu:
-	@echo "🚀 Running on CPU (10 examples)..."
-	@echo "⚠️  This will be SLOW (~30+ minutes)"
-	uv run python experiments/scripts/run_gemma2b_baseline.py \
-		--dataset natural_questions \
-		--num-examples 10 \
-		--device cpu \
-		--filter-no-answer \
-		--metrics exact_match f1
-
-run-gemma2b-8bit:
-	@echo "🚀 Running with 8-bit quantization..."
-	@echo "💾 Uses less memory (~3GB instead of ~8GB)"
-	uv run python experiments/scripts/run_gemma2b_baseline.py \
-		--dataset natural_questions \
-		--num-examples 100 \
-		--device cuda \
-		--load-in-8bit \
-		--filter-no-answer \
-		--metrics exact_match f1
-
-# ============================================================================
-# Other Baselines
-# ============================================================================
+		--metrics exact_match f1 \
+		--load-in-8bit
 
 run-baseline:
-	@echo "🚀 Running DirectLLM baseline..."
+	@echo "🚀 Running DirectLLM baseline (Flan-T5)..."
 	uv run python experiments/scripts/run_experiment.py \
 		--config experiments/configs/baseline_direct.yaml \
 		--mode eval
@@ -187,11 +263,13 @@ compare-baselines:
 
 
 # ============================================================================
-# RAG Evaluation (with trained retriever)
+# Legacy RAG Scripts (kept for backward compatibility)
 # ============================================================================
 
 run-fixed-rag:
-	@echo "🔍 Running FixedRAG evaluation (quick test - 10 examples)..."
+	@echo "🔍 Running FixedRAG evaluation (legacy script)"
+	@echo "⚠️  Consider using: make eval-rag (config-based)"
+	@echo ""
 	@if [ ! -d artifacts/retrievers/wikipedia_small ]; then \
 		echo "⚠️  Wikipedia index not found. Indexing first..."; \
 		$(MAKE) index-wiki-small; \
@@ -207,7 +285,9 @@ run-fixed-rag:
 		--output outputs/fixed_rag_small_results.json
 
 run-fixed-rag-full:
-	@echo "🔍 Running FixedRAG evaluation (full - 100 examples)..."
+	@echo "🔍 Running FixedRAG evaluation (legacy script - full)"
+	@echo "⚠️  Consider using: make eval-rag (config-based)"
+	@echo ""
 	@if [ ! -d artifacts/retrievers/wikipedia_small ]; then \
 		echo "⚠️  Wikipedia index not found. Indexing first..."; \
 		$(MAKE) index-wiki-small; \

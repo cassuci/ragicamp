@@ -26,6 +26,7 @@ dependencies = [
     "tqdm>=4.65.0",
     "scikit-learn>=1.2.0",
     "accelerate>=0.20.0",
+    "bitsandbytes>=0.41.0",  # For 8-bit quantization
     "bert-score>=0.3.13",
     "bleurt",
     "keras<3",
