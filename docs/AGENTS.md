@@ -608,12 +608,46 @@ print(response.answer)
 
 ---
 
+## 📊 Evaluating Agents
+
+### Standard Metrics
+
+```python
+from ragicamp.metrics.exact_match import ExactMatchMetric, F1Metric
+
+metrics = [ExactMatchMetric(), F1Metric()]
+evaluator = Evaluator(agent, dataset, metrics)
+results = evaluator.evaluate()
+```
+
+### Advanced: LLM-as-a-Judge
+
+For high-quality binary correctness labels:
+
+```python
+from ragicamp.metrics.llm_judge_qa import LLMJudgeQAMetric
+from ragicamp.models.openai import OpenAIModel
+
+# Create GPT-4 judge
+judge_model = OpenAIModel("gpt-4o", temperature=0.0)
+llm_judge = LLMJudgeQAMetric(judge_model, judgment_type="binary")
+
+# Add to evaluation
+metrics = [ExactMatchMetric(), F1Metric(), llm_judge]
+evaluator = Evaluator(agent, dataset, metrics)
+```
+
+**See:** `docs/METRICS_RECOMMENDATIONS.md` and `LLM_JUDGE_QUICKSTART.md`
+
+---
+
 ## Next Steps
 
-- See [ARCHITECTURE.md](ARCHITECTURE.md) for system design
-- See [USAGE.md](USAGE.md) for detailed examples
-- See [guides/](guides/) for specific topics
-- Check [examples/](../examples/) for complete scripts
+- **[Metrics Guide](METRICS_RECOMMENDATIONS.md)** - Choosing evaluation metrics
+- **[LLM Judge Guide](../LLM_JUDGE_QUICKSTART.md)** - Using GPT-4 for evaluation
+- **[Config Guide](../CONFIG_BASED_EVALUATION.md)** - Config-driven experiments
+- **[Architecture](ARCHITECTURE.md)** - System design
+- **[Usage Guide](USAGE.md)** - Detailed examples
 
 **Ready to build?** Start with FixedRAGAgent for production, then explore adaptive agents for optimization! 🚀
 
