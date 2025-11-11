@@ -110,7 +110,104 @@ Prediction: "Plants use sunlight to make energy"
 
 ---
 
-### 5. **LLM-as-a-Judge (NEW!)** 💰 Expensive
+### 5. **Faithfulness (NEW!)** 🎯 RAG-Specific
+**What it measures**: Whether the answer is grounded in retrieved documents
+
+**Strengths:**
+- Detects hallucinations
+- Critical for RAG evaluation
+- Multiple methods (NLI, token-based, LLM)
+- Fast with NLI models
+
+**Weaknesses:**
+- Requires retrieved context (RAG only)
+- NLI models can make mistakes
+- Doesn't measure correctness
+
+**When to use:**
+- ✅ **Evaluating RAG systems**
+- ✅ **Detecting hallucinations**
+- When you need to verify context usage
+- Comparing parametric vs retrieved knowledge
+
+**Example:**
+```python
+Question: "When was the Eiffel Tower built?"
+Retrieved Context: "The Eiffel Tower was completed in 1889 in Paris."
+Answer: "1889"  → Faithfulness = 1.0 ✅ (supported by context)
+Answer: "It was built by Gustave Eiffel in Paris"  → Faithfulness = 0.3 ❌ (name not in context)
+```
+
+**Methods:**
+- `nli`: Natural Language Inference (default, best quality)
+- `token_overlap`: Simple token matching (fast baseline)
+- `llm`: LLM-based judgment (highest quality, expensive)
+
+**Config:**
+```python
+FaithfulnessMetric(
+    method="nli",  # or "token_overlap", "llm"
+    nli_model="microsoft/deberta-base-mnli",
+    threshold=0.5
+)
+```
+
+---
+
+### 6. **Hallucination Detection (NEW!)** 🎯 RAG-Specific
+**What it measures**: Inverse of faithfulness - detects unsupported claims
+
+**Strengths:**
+- Identifies problematic outputs
+- Complementary to faithfulness
+- Includes contradiction detection
+- Multiple detection methods
+
+**Weaknesses:**
+- Requires retrieved context (RAG only)
+- May have false positives
+- Doesn't measure correctness
+
+**When to use:**
+- ✅ **Quality control for RAG systems**
+- ✅ **Identifying model hallucinations**
+- Production monitoring
+- Comparing retrieval strategies
+
+**Example:**
+```python
+Question: "What is Python?"
+Retrieved Context: "Python is a programming language."
+Answer: "Python is a snake"  → Hallucination = 0.8 ❌ (contradicted by context)
+Answer: "Python is a programming language"  → Hallucination = 0.0 ✅ (supported)
+```
+
+**Methods:**
+- `nli`: NLI-based detection (checks contradiction + lack of entailment)
+- `simple`: Token-based heuristic (fast baseline)
+
+**Config:**
+```python
+HallucinationMetric(
+    method="nli",  # or "simple"
+    nli_model="microsoft/deberta-base-mnli",
+    threshold=0.5
+)
+```
+
+**Output:**
+```json
+{
+  "hallucination_rate": 0.15,        // Average score
+  "hallucinated_ratio": 0.12,        // % above threshold
+  "hallucinated_count": 12,          // Number of cases
+  "total": 100
+}
+```
+
+---
+
+### 7. **LLM-as-a-Judge** 💰 Expensive
 **What it measures**: Categorical judgment by GPT-4 (correct/partial/incorrect)
 
 **Strengths:**
@@ -138,7 +235,35 @@ Prediction: "Plants use sunlight to make energy"
 
 ## 🎯 Recommended Metric Combinations
 
-### For Your Use Case: Binary Performance Evaluation
+### For RAG Systems (NEW!) 🔥 
+
+```python
+metrics = [
+    ExactMatchMetric(),           # Correctness
+    F1Metric(),                   # Partial credit
+    BERTScoreMetric(),            # Semantic similarity
+    FaithfulnessMetric(           # Groundedness
+        method="nli"
+    ),
+    HallucinationMetric(          # Hallucination detection
+        method="nli"
+    )
+]
+```
+
+**Why this combination:**
+- EM/F1/BERTScore: Measure correctness
+- Faithfulness: Verify answers use retrieved context
+- Hallucination: Catch unsupported claims
+- **Complete RAG evaluation**: Correctness + Groundedness
+
+**Use for:**
+- Comparing retrieval strategies
+- Tuning RAG parameters
+- Production RAG monitoring
+- Research on grounded generation
+
+### For Binary Performance Evaluation
 
 ```python
 metrics = [
@@ -219,14 +344,7 @@ scores = rouge.get_scores(predictions, references)
 
 **Implementation:** Use semantic similarity between question and answer
 
-### 8. **Faithfulness** (Not yet implemented)
-**What:** Is the answer grounded in the retrieved context?
-
-**Good for:** RAG systems
-
-**Implementation:** Check if answer content appears in retrieved documents
-
-### 9. **Answer Length** (Easy to add)
+### 8. **Answer Length** (Easy to add)
 **What:** Token count of answer
 
 **Good for:** Detecting overly verbose or terse answers
@@ -258,6 +376,7 @@ metrics = [EM]
 | Yes/No | EM, **LLM Judge** |
 | Numerical | EM with normalization |
 | Lists | F1, custom list metrics |
+| **RAG outputs** | **EM/F1 + Faithfulness + Hallucination** |
 
 ### 3. Understand Trade-offs
 
@@ -268,6 +387,8 @@ metrics = [EM]
 | **Cost** | EM, F1 (free) |
 | **Interpretability** | EM, **LLM Judge** (explains) |
 | **Binary classification** | **LLM Judge** (best) |
+| **RAG evaluation** | **Faithfulness + Hallucination** (essential) |
+| **Grounded generation** | **Faithfulness** (NLI method) |
 
 ### 4. Validate Metrics Against Human Judgment
 

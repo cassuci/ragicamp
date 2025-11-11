@@ -15,31 +15,22 @@ help:
 	@echo "  make verify-install       - Verify all dependencies are working"
 	@echo ""
 	@echo "🏋️  INDEXING & CORPUS"
-	@echo "  make index-corpus         - Index corpus (new architecture)"
 	@echo "  make index-wiki-simple    - Index Simple Wikipedia (~200k articles)"
 	@echo "  make index-wiki-small     - Quick test (10k articles)"
 	@echo "  make list-artifacts       - List saved artifacts"
 	@echo "  make clean-artifacts      - Remove all artifacts"
-	@echo ""
-	@echo "📋 EXPERIMENT MANAGEMENT"
-	@echo "  make demo-architecture    - Demo new architecture"
-	@echo "  make list-experiments     - List all experiments"
-	@echo "  make compare-experiments  - Compare experiment results"
 	@echo ""
 	@echo "🚀 EVALUATION (Config-Based)"
 	@echo "  make eval-baseline-quick  - Quick test (10 examples, GPU)"
 	@echo "  make eval-baseline-full   - Full eval (100 examples, GPU, all metrics)"
 	@echo "  make eval-baseline-cpu    - CPU evaluation (10 examples, slower)"
 	@echo "  make eval-rag             - RAG evaluation (requires indexed corpus)"
+	@echo "  make eval-rag-faithfulness - RAG with faithfulness & hallucination metrics"
 	@echo ""
 	@echo "🤖 EVALUATION WITH LLM JUDGE (Requires OPENAI_API_KEY)"
 	@echo "  make eval-with-llm-judge       - Binary judge (correct/incorrect)"
 	@echo "  make eval-with-llm-judge-mini  - Budget version (GPT-4o-mini)"
 	@echo "  make eval-with-llm-judge-ternary - Ternary judge (correct/partial/incorrect)"
-	@echo ""
-	@echo "📊 LEGACY EVALUATION (Direct Scripts)"
-	@echo "  make run-gemma2b          - Legacy: Direct script baseline"
-	@echo "  make run-fixed-rag        - Legacy: Direct script RAG"
 	@echo ""
 	@echo "🧪 DEVELOPMENT"
 	@echo "  make test                 - Run tests"
@@ -186,6 +177,24 @@ eval-rag:
 	fi
 	uv run python experiments/scripts/run_experiment.py \
 		--config experiments/configs/nq_fixed_rag_gemma2b.yaml \
+		--mode eval
+
+eval-rag-faithfulness:
+	@echo "🔍🎯 Running FixedRAG evaluation WITH Faithfulness Metrics"
+	@echo "📋 Config: experiments/configs/nq_fixed_rag_with_faithfulness.yaml"
+	@echo "⏱️  ~15-20 minutes on GPU (includes hallucination detection)"
+	@echo ""
+	@echo "📊 This evaluates:"
+	@echo "  ✓ Correctness (EM, F1, BERTScore)"
+	@echo "  ✓ Faithfulness (answer grounded in context)"
+	@echo "  ✓ Hallucination detection (unsupported claims)"
+	@echo ""
+	@if [ ! -d artifacts/retrievers/wikipedia_small ]; then \
+		echo "⚠️  Wikipedia index not found. Indexing first..."; \
+		$(MAKE) index-wiki-small; \
+	fi
+	uv run python experiments/scripts/run_experiment.py \
+		--config experiments/configs/nq_fixed_rag_with_faithfulness.yaml \
 		--mode eval
 
 # ============================================================================
@@ -364,14 +373,6 @@ clean-artifacts:
 demo-architecture:
 	@echo "🎭 Running architecture demo..."
 	uv run python experiments/scripts/demo_new_architecture.py
-
-index-corpus:
-	@echo "📚 Indexing corpus (new architecture)..."
-	uv run python experiments/scripts/index_corpus.py \
-		--corpus-name wikipedia_simple \
-		--corpus-version 20231101.simple \
-		--max-docs 10000 \
-		--artifact-name wikipedia_corpus_v1
 
 list-experiments:
 	@echo "📋 Listing all experiments..."
