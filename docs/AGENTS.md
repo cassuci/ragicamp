@@ -637,15 +637,15 @@ metrics = [ExactMatchMetric(), F1Metric(), llm_judge]
 evaluator = Evaluator(agent, dataset, metrics)
 ```
 
-**See:** `docs/METRICS_RECOMMENDATIONS.md` and `LLM_JUDGE_QUICKSTART.md`
+**See:** [Metrics Guide](guides/METRICS.md) and [LLM Judge Guide](guides/LLM_JUDGE.md)
 
 ---
 
 ## Next Steps
 
-- **[Metrics Guide](METRICS_RECOMMENDATIONS.md)** - Choosing evaluation metrics
-- **[LLM Judge Guide](../LLM_JUDGE_QUICKSTART.md)** - Using GPT-4 for evaluation
-- **[Config Guide](../CONFIG_BASED_EVALUATION.md)** - Config-driven experiments
+- **[Metrics Guide](guides/METRICS.md)** - Choosing evaluation metrics
+- **[LLM Judge Guide](guides/LLM_JUDGE.md)** - Using GPT-4 for evaluation
+- **[Config Guide](guides/CONFIG_BASED_EVALUATION.md)** - Config-driven experiments
 - **[Architecture](ARCHITECTURE.md)** - System design
 - **[Usage Guide](USAGE.md)** - Detailed examples
 

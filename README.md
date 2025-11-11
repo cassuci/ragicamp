@@ -113,11 +113,17 @@ All evaluations save 3 JSON files:
 | Guide | Description |
 |-------|-------------|
 | **[Quick Reference](QUICK_REFERENCE.md)** | One-page command cheat sheet |
-| **[Config Guide](CONFIG_BASED_EVALUATION.md)** | How to use config files |
-| **[Metrics Guide](docs/METRICS_RECOMMENDATIONS.md)** | Choosing the right metrics |
-| **[LLM Judge Guide](LLM_JUDGE_QUICKSTART.md)** | Using GPT-4 for evaluation |
+| **[Documentation Index](docs/README.md)** | Complete documentation catalog |
+| **[Config Guide](docs/guides/CONFIG_BASED_EVALUATION.md)** | How to use config files |
+| **[Metrics Guide](docs/guides/METRICS.md)** | Choosing the right metrics |
+| **[LLM Judge Guide](docs/guides/LLM_JUDGE.md)** | Using GPT-4 for evaluation |
 | **[Architecture](docs/ARCHITECTURE.md)** | System design & components |
 | **[Agents Guide](docs/AGENTS.md)** | Understanding different agents |
+
+**📖 Navigation Tips:**
+- **New here?** Start with [Quick Reference](QUICK_REFERENCE.md) for commands, then [docs/](docs/README.md) for full docs
+- **Need help?** Check [docs/README.md](docs/README.md) - it's the complete documentation index
+- **Specific topic?** Browse [docs/guides/](docs/guides/) for focused guides on configs, metrics, LLM judge, etc.
 
 ## 🛠️ Common Commands
 
