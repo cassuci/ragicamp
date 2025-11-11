@@ -28,6 +28,10 @@ metrics:
   - name: bleurt
     params:
       checkpoint: "BLEURT-20"  # Options: BLEURT-20-D3 (faster), BLEURT-20 (better)
+  
+  # Note: Faithfulness/hallucination metrics require retrieved context
+  # They are only meaningful for RAG agents (not baseline DirectLLM)
+  # For RAG evaluation with faithfulness, see: nq_fixed_rag_with_faithfulness.yaml
 
 output:
   save_predictions: true

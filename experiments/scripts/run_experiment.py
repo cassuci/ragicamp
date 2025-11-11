@@ -39,6 +39,19 @@ try:
     LLM_JUDGE_AVAILABLE = True
 except ImportError:
     LLM_JUDGE_AVAILABLE = False
+
+try:
+    from ragicamp.metrics.faithfulness import FaithfulnessMetric
+    FAITHFULNESS_AVAILABLE = True
+except ImportError:
+    FAITHFULNESS_AVAILABLE = False
+
+try:
+    from ragicamp.metrics.hallucination import HallucinationMetric
+    HALLUCINATION_AVAILABLE = True
+except ImportError:
+    HALLUCINATION_AVAILABLE = False
+
 from ragicamp.models.huggingface import HuggingFaceModel
 from ragicamp.models.openai import OpenAIModel
 from ragicamp.policies.bandits import EpsilonGreedyBandit, UCBBandit
@@ -260,6 +273,43 @@ def create_metrics(config: list, judge_model_config: dict = None):
                 judgment_type=judgment_type
             ))
             print(f"✓ Added LLM Judge ({judgment_type} mode)")
+        elif metric_name == "faithfulness":
+            if not FAITHFULNESS_AVAILABLE:
+                print(f"⚠️  Skipping Faithfulness (not installed). Install with: uv sync")
+                continue
+            method = metric_params.get("method", "nli")
+            nli_model = metric_params.get("nli_model", "microsoft/deberta-base-mnli")
+            threshold = metric_params.get("threshold", 0.5)
+            # Check if LLM method requested
+            if method == "llm":
+                if not judge_model:
+                    print(f"⚠️  Skipping Faithfulness (llm method requires judge_model)")
+                    continue
+                metrics.append(FaithfulnessMetric(
+                    method=method,
+                    judge_model=judge_model,
+                    threshold=threshold
+                ))
+            else:
+                metrics.append(FaithfulnessMetric(
+                    method=method,
+                    nli_model=nli_model,
+                    threshold=threshold
+                ))
+            print(f"✓ Added Faithfulness ({method} method)")
+        elif metric_name == "hallucination":
+            if not HALLUCINATION_AVAILABLE:
+                print(f"⚠️  Skipping Hallucination (not installed). Install with: uv sync")
+                continue
+            method = metric_params.get("method", "nli")
+            nli_model = metric_params.get("nli_model", "microsoft/deberta-base-mnli")
+            threshold = metric_params.get("threshold", 0.5)
+            metrics.append(HallucinationMetric(
+                method=method,
+                nli_model=nli_model,
+                threshold=threshold
+            ))
+            print(f"✓ Added Hallucination Detection ({method} method)")
         else:
             print(f"⚠️  Unknown metric: {metric_name}, skipping")
     
